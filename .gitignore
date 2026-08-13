@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+bun.lock
+
+# Build output
+.output/
+.wrangler/
+dist/
+.vinxi/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Lovable-specific (not needed for deployment)
+.lovable/
+AGENTS.md
+
+# Claude-specific
+.claude/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
