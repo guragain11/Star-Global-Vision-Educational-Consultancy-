@@ -354,6 +354,14 @@ export function Footer() {
           <p>
             © {new Date().getFullYear()} {site.legalName}. All rights reserved.
           </p>
+          <a
+            href="https://drillthru.tech"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="transition-colors hover:text-ink-foreground/90"
+          >
+            Made with ❤️ by Drill Thru
+          </a>
         </div>
       </div>
     </footer>
