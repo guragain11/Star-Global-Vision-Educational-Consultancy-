@@ -1,29 +1,31 @@
-# Welcome to your Lovable project
+# Star Global Vision Educational Consultancy
 
-This project was built with [Lovable](https://lovable.dev).
+A modern educational consultancy website for students exploring study-abroad opportunities.
 
-## Build with Lovable
-
-Open your project in the [Lovable editor](https://lovable.dev) and keep building.
-
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: connect the project to GitHub and every change made in Lovable is committed straight to your repository.
-- **Full ownership**: this code is yours. Push to your repository and your changes sync back into Lovable, ready for your next prompt.
-
-## Development
-
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
-
-```sh
-git clone <this-repository-url>
-cd <repository-name>
-npm i
-npm run dev
-```
-
-## Built with
+## Tech Stack
 
 - TanStack Start
 - TypeScript
 - React
 - Tailwind CSS
+- Supabase
+
+## Development
+
+```sh
+git clone https://github.com/guragain11/Star-Global-Vision-Educational-Consultancy-.git
+cd Star-Global-Vision-Educational-Consultancy-
+npm i
+npm run dev
+```
+
+## Deployment
+
+```sh
+npm run build
+npx wrangler deploy
+```
+
+## License
+
+All rights reserved.
