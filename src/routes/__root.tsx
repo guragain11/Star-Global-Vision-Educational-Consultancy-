@@ -12,6 +12,7 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { defaultOgImage } from "../lib/seo";
+import { InquiryPopup } from "../components/site/InquiryPopup";
 
 /** Suggested destinations on the 404 page, to keep a lost visitor inside the site. */
 const notFoundLinks = [
@@ -179,6 +180,7 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
+      <InquiryPopup />
     </QueryClientProvider>
   );
 }
