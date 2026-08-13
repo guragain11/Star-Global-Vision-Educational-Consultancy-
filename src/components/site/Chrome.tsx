@@ -354,9 +354,6 @@ export function Footer() {
           <p>
             © {new Date().getFullYear()} {site.legalName}. All rights reserved.
           </p>
-          <Link to="/admin" className="transition-colors hover:text-ink-foreground/90">
-            Staff login
-          </Link>
         </div>
       </div>
     </footer>
