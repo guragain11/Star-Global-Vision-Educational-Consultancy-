@@ -1,5 +1,5 @@
 /** Production origin, used whenever `VITE_SITE_URL` is not set. */
-const DEFAULT_ORIGIN = "https://starglobalvision.edu.np";
+const DEFAULT_ORIGIN = "https://starglobalvision.com";
 
 /**
  * Canonical origin of the deployed site, without a trailing slash.
