@@ -157,15 +157,21 @@ function CountryDetail() {
                 src={c.image}
                 alt=""
                 fetchPriority="high"
-                className="size-full object-cover opacity-45"
+                /* Darkened with a brightness filter rather than opacity: fading
+                   the photo toward the navy behind it flattens midtone detail,
+                   where brightness pulls the highlights down and keeps it. The
+                   slight saturate stops the result reading grey. */
+                className="size-full object-cover brightness-[0.55] saturate-[1.15]"
               />
             ) : (
               <CoverFallback label={c.flag} seed={c.slug} className="size-full opacity-60" />
             )}
-            {/* Two scrims: one to sink the photo into the brand navy, one to keep
-                the bottom edge dark enough for the headline. */}
-            <span className="absolute inset-0 bg-ink/70" />
-            <span className="absolute inset-0 bg-linear-to-t from-ink via-ink/45 to-ink/70" />
+            {/* One light flat tint to tie the photo to the brand navy, then a
+                vignette that darkens only the top and bottom, where the small
+                text sits. The middle band stays clear for the photo, and the
+                headline over it is large enough to stay legible there. */}
+            <span className="absolute inset-0 bg-ink/35" />
+            <span className="absolute inset-0 bg-linear-to-t from-ink/85 via-transparent to-ink/45" />
           </div>
 
           <div className="relative mx-auto max-w-6xl px-5 py-16 md:py-24">
