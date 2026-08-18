@@ -364,7 +364,7 @@ function TestPrepMenu() {
                     onClick={close}
                     className={countryRowClass}
                   >
-                    <span className="surface-sun inline-flex size-7 shrink-0 items-center justify-center rounded-lg">
+                    <span className="surface-brand inline-flex size-7 shrink-0 items-center justify-center rounded-lg">
                       <Icon aria-hidden="true" className="size-3.5" />
                     </span>
                     <span className="truncate">{e.name}</span>
@@ -473,7 +473,7 @@ function MobileTestPrep({ onNavigate }: { onNavigate: () => void }) {
               onClick={onNavigate}
               className={countryRowClass}
             >
-              <span className="surface-sun inline-flex size-7 shrink-0 items-center justify-center rounded-lg">
+              <span className="surface-brand inline-flex size-7 shrink-0 items-center justify-center rounded-lg">
                 <Icon aria-hidden="true" className="size-3.5" />
               </span>
               {e.name}
