@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties, type ElementType } from "react";
+import { Fragment, useEffect, useState, type CSSProperties, type ElementType } from "react";
 
 /**
  * A headline whose words rise into place one after another.
@@ -10,7 +10,7 @@ import { useEffect, useState, type CSSProperties, type ElementType } from "react
  *
  * Three things this gets right that a naive split does not:
  *  - The text stays one continuous string for a screen reader and for
- *    select-and-copy, because the spaces ride along inside the spans.
+ *    select-and-copy, because the separating spaces sit between the spans.
  *  - `text-wrap: balance` still applies: the spans are inline-block *words*, not
  *    lines, so the browser breaks where it always would.
  *  - Server render matches hydration exactly (`data-reveal="out"` on both sides),
@@ -41,28 +41,28 @@ export function SplitWords({
     setShown(true);
   }, []);
 
-  // Split keeping the separators, then glue each run of whitespace onto the word
-  // before it: an inline-block span containing only a space collapses to nothing,
-  // which would run the whole headline together.
-  const words: string[] = [];
-  for (const chunk of text.split(/(\s+)/)) {
-    if (!chunk) continue;
-    if (/^\s+$/.test(chunk) && words.length > 0) words[words.length - 1] += chunk;
-    else words.push(chunk);
-  }
+  // The space goes *between* the spans, not inside them. Each span is
+  // `display: inline-block`, which makes it its own block container, and CSS drops
+  // whitespace at the end of a block container's last line — so a space glued onto
+  // the end of a word vanishes and the whole headline runs together. A bare text
+  // node between two inline-blocks renders as a normal space, and still reads as
+  // one continuous string for a screen reader and for select-and-copy.
+  const words = text.split(/\s+/).filter(Boolean);
 
   const highlightFrom = highlightWords > 0 ? words.length - highlightWords : words.length;
 
   return (
     <Tag data-reveal={shown ? "in" : "out"} className={`words ${className}`}>
       {words.map((word, i) => (
-        <span
-          key={`${i}-${word}`}
-          style={{ "--i": i } as CSSProperties}
-          className={i >= highlightFrom ? "text-gradient-sun" : undefined}
-        >
-          {word}
-        </span>
+        <Fragment key={`${i}-${word}`}>
+          {i > 0 && " "}
+          <span
+            style={{ "--i": i } as CSSProperties}
+            className={i >= highlightFrom ? "text-gradient-sun" : undefined}
+          >
+            {word}
+          </span>
+        </Fragment>
       ))}
     </Tag>
   );
