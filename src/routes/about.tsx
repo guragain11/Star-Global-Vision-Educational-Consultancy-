@@ -2,12 +2,14 @@ import { createFileRoute } from "@tanstack/react-router";
 import { BadgeCheck, Mail, Phone, Quote } from "lucide-react";
 
 import { CtaBand, PageHero, SectionHeading, SiteLayout } from "@/components/site/Chrome";
+import { Counter } from "@/components/site/Counter";
 import { Reveal } from "@/components/site/Reveal";
 import { advantageIcons } from "@/components/site/advantage-icons";
-import { advantages, processSteps, services, site, stats, testimonials } from "@/data/site";
+import { advantages, processSteps, services, site, testimonials } from "@/data/site";
 import { fetchTeamMembers } from "@/lib/content-api";
 import { initials } from "@/lib/content-utils";
 import { absoluteUrl, breadcrumbJsonLd, defaultOgImage } from "@/lib/seo";
+import { useStats } from "@/lib/use-countries";
 
 export const Route = createFileRoute("/about")({
   head: () => ({
@@ -48,11 +50,13 @@ export const Route = createFileRoute("/about")({
 
 function About() {
   const { teamMembers } = Route.useLoaderData();
+  const headlineStats = useStats();
 
   return (
     <SiteLayout>
       <PageHero
         title="A Kathmandu consultancy that tells you what your file is actually worth."
+        highlight={2}
         intro="Star Global Vision Educational Consultancy has guided students from Bagbazar-28 to universities and colleges across four continents, with counselling that starts from your profile, not from a commission list."
       />
 
@@ -83,12 +87,14 @@ function About() {
               </p>
             </div>
             <dl className="grid grid-cols-2 gap-4">
-              {stats.map((s) => (
+              {headlineStats.map((s) => (
                 <div
                   key={s.label}
                   className="rounded-xl border border-border bg-card p-5 shadow-hair"
                 >
-                  <dt className="font-display text-2xl font-bold text-primary">{s.value}</dt>
+                  <dt className="font-display text-2xl font-bold text-primary">
+                    <Counter to={s.to} suffix={s.suffix} />
+                  </dt>
                   <dd className="mt-1 text-xs text-muted-foreground">{s.label}</dd>
                 </div>
               ))}
@@ -132,7 +138,7 @@ function About() {
                   {/* Watermark numeral: decorative, the step number is read below. */}
                   <span
                     aria-hidden="true"
-                    className="pointer-events-none absolute -right-2 -top-4 font-display text-7xl font-bold text-primary-soft transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-110"
+                    className="pointer-events-none absolute -right-2 -top-4 font-display text-7xl font-bold text-primary-soft transition-transform duration-500 ease-brand group-hover:scale-110"
                   >
                     {step.step}
                   </span>
@@ -186,17 +192,20 @@ function About() {
               <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                 {teamMembers.map((member) => (
                   <Reveal key={member.id} delay={100}>
-                    <div className="card-lift group rounded-2xl border border-border bg-card p-6 shadow-soft text-center transition-transform duration-300 hover:-translate-y-1 hover:shadow-md">
+                    {/* `card-lift` already owns the hover lift and shadow; this used to
+                        add a second -4px translate and an off-scale shadow-md on top,
+                        so the card moved twice as far as every other card on the site. */}
+                    <div className="card-lift group rounded-2xl border border-border bg-card p-6 text-center shadow-soft">
                       {/* Photo or initials */}
                       {member.photo ? (
                         <img
                           src={member.photo}
                           alt={member.name}
-                          className="mx-auto size-24 rounded-full object-cover shadow-hair ring-4 ring-primary/10 transition-transform duration-300 group-hover:scale-105"
+                          className="mx-auto size-24 rounded-full object-cover shadow-hair ring-4 ring-primary/10 transition-transform duration-300 ease-brand group-hover:scale-105"
                         />
                       ) : (
-                        <div className="mx-auto flex size-24 items-center justify-center rounded-full bg-gradient-to-br from-primary to-accent shadow-hair ring-4 ring-primary/10 transition-transform duration-300 group-hover:scale-105">
-                          <span className="font-display text-2xl font-bold text-white">
+                        <div className="surface-sun mx-auto flex size-24 items-center justify-center rounded-full shadow-hair ring-4 ring-primary/10 transition-transform duration-300 ease-brand group-hover:scale-105">
+                          <span className="font-display text-2xl font-bold">
                             {initials(member.name)}
                           </span>
                         </div>

@@ -2,17 +2,20 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowRight, BadgeCheck, Quote, Star } from "lucide-react";
 import { CtaBand, SectionHeading, SiteLayout } from "@/components/site/Chrome";
 import { advantageIcons } from "@/components/site/advantage-icons";
-import { BlogCard, StoryCard } from "@/components/site/ContentCards";
+import { BlogCard, CoverFallback, StoryCard } from "@/components/site/ContentCards";
+import { Counter } from "@/components/site/Counter";
 import { FaqList } from "@/components/site/Faq";
 import { Reveal } from "@/components/site/Reveal";
+import { SplitWords } from "@/components/site/SplitWords";
 import { absoluteUrl, defaultOgImage, faqJsonLd, siteUrl } from "@/lib/seo";
 import { fetchBlogPosts, fetchSuccessStories } from "@/lib/content-api";
+import { capitalise, numberWord } from "@/lib/content-utils";
+import { magneticProps } from "@/lib/pointer-effects";
+import { useCountries, useStats } from "@/lib/use-countries";
 import {
   processSteps,
-  countries,
   services,
   site,
-  stats,
   telHref,
   testimonials,
   tests,
@@ -35,7 +38,7 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "Study abroad consultancy in Bagbazar, Kathmandu for Australia, USA, Canada, UK, New Zealand, Europe & Japan. IELTS, PTE, Duolingo and Japanese classes.",
+          "Study abroad consultancy in Bagbazar, Kathmandu for Australia, Canada, USA, UK, New Zealand, the Nordics, Japan, South Korea, the UAE and more. IELTS, PTE, Duolingo and Japanese classes.",
       },
       { property: "og:title", content: "Star Global Vision Educational Consultancy" },
       {
@@ -81,7 +84,11 @@ export const Route = createFileRoute("/")({
 
 function Home() {
   const { stories, posts } = Route.useLoaderData();
+  const countries = useCountries();
+  const headlineStats = useStats();
   const primary = countries.filter((c) => c.tier === "primary");
+  // Named in the line under the rail, so the copy tracks the data.
+  const alsoPlacing = countries.filter((c) => c.tier === "secondary").map((c) => c.name);
 
   // Featured stories lead; anything else fills the row up to three.
   const homeStories = (() => {
@@ -94,36 +101,38 @@ function Home() {
   return (
     <SiteLayout>
       {/* Hero */}
-      <section className="surface-brand grid-glow relative overflow-hidden">
+      <section className="aurora relative overflow-hidden text-ink-foreground">
         {/* Ambient light behind the headline: decorative, never announced. */}
         <div
           aria-hidden="true"
           className="float-drift pointer-events-none absolute -right-20 -top-28 size-[28rem] rounded-full bg-accent/14 blur-3xl"
         />
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute -bottom-48 -left-24 size-96 rounded-full bg-primary/30 blur-3xl"
-        />
+        <span aria-hidden="true" className="noise absolute inset-0" />
 
         <div className="relative mx-auto grid max-w-6xl items-center gap-12 px-5 py-16 md:grid-cols-[1.05fr_1fr] md:py-24">
           <div>
-            <p className="inline-flex items-center gap-2 rounded-full border border-ink-foreground/25 bg-ink-foreground/5 px-3 py-1.5 text-xs font-medium text-ink-foreground/85 backdrop-blur-sm">
+            <p className="glass-ink inline-flex items-center gap-2 rounded-full border border-ink-foreground/25 px-3 py-1.5 text-xs font-medium text-ink-foreground/85">
               <BadgeCheck className="size-4 text-accent" />
               {site.approval}
             </p>
-            <h1 className="mt-6 font-display text-4xl font-bold leading-[1.02] text-ink-foreground md:text-6xl">
-              University applications, test preparation and visa filing,{" "}
-              <span className="text-gradient-sun">handled in one office.</span>
-            </h1>
+            {/* The five closing words take the sun gradient, which is where the
+                promise of the sentence actually lands. */}
+            <SplitWords
+              as="h1"
+              text="University applications, test preparation and visa filing, handled in one office."
+              highlightWords={4}
+              className="mt-6 text-balance font-display text-display-xl font-bold"
+            />
             <p className="mt-6 max-w-xl text-base leading-relaxed text-ink-foreground/75 md:text-lg">
               Star Global Vision guides students from Bagbazar, Kathmandu to world-ranked
-              universities in Australia, the U.S.A, Canada, the U.K and beyond. Counselling,
+              universities in Australia, the USA, Canada, the UK and beyond. Counselling,
               documentation, language classes and visa support under one roof.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
                 to="/contact"
-                className="surface-sun press inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-semibold shadow-lift hover:-translate-y-0.5 hover:shadow-float"
+                {...magneticProps(7)}
+                className="surface-sun magnetic inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-semibold shadow-lift hover:shadow-float"
               >
                 Book free counselling <ArrowRight className="size-4" />
               </Link>
@@ -135,10 +144,10 @@ function Home() {
               </Link>
             </div>
             <dl className="mt-12 grid grid-cols-2 gap-6 sm:grid-cols-4">
-              {stats.map((s) => (
+              {headlineStats.map((s) => (
                 <div key={s.label}>
                   <dt className="font-display text-2xl font-bold text-ink-foreground md:text-3xl">
-                    {s.value}
+                    <Counter to={s.to} suffix={s.suffix} />
                   </dt>
                   <dd className="mt-1 text-xs text-ink-foreground/60">{s.label}</dd>
                 </div>
@@ -154,16 +163,16 @@ function Home() {
               fetchPriority="high"
               className="aspect-4/3 w-full rounded-3xl object-cover shadow-float"
             />
-            <div className="absolute -bottom-6 left-4 hidden rounded-2xl bg-card p-4 shadow-float sm:block">
+            <div className="glass absolute -bottom-6 left-4 hidden rounded-2xl border border-border/60 p-4 text-foreground shadow-float sm:block">
               <p className="flex items-center gap-1 text-accent">
                 {Array.from({ length: 5 }).map((_, i) => (
                   <Star key={i} className="size-4 fill-current" />
                 ))}
               </p>
-              <p className="mt-1 text-sm font-semibold text-card-foreground">
-                98% visa success rate
+              <p className="mt-1 text-sm font-semibold">98% visa success rate</p>
+              <p className="text-xs text-muted-foreground">
+                Across {countries.length} destinations
               </p>
-              <p className="text-xs text-muted-foreground">Across 7 destinations</p>
             </div>
           </div>
         </div>
@@ -177,7 +186,9 @@ function Home() {
         <Reveal className="flex flex-wrap items-end justify-between gap-4">
           <SectionHeading
             eyebrow="Where you can go"
-            title="Four flagship destinations, seven in total"
+            title={`${capitalise(numberWord(primary.length))} flagship destinations, ${numberWord(
+              countries.length,
+            )} in total`}
           />
           <Link
             to="/countries"
@@ -190,20 +201,24 @@ function Home() {
           {primary.map((c) => (
             <Link
               key={c.slug}
-              to="/countries"
-              hash={c.slug}
+              to="/countries/$slug"
+              params={{ slug: c.slug }}
               /* Four cards in a row: a smaller lift than a full-width panel. */
-              className="card-lift group overflow-hidden rounded-2xl border border-border bg-card shadow-soft [--lift:-0.1875rem]"
+              className="card-lift tilt group overflow-hidden rounded-2xl border border-border bg-card shadow-soft [--lift:-0.1875rem]"
             >
               {/* Destination photo from public/, keyed off the country data. */}
-              <div className="relative h-40 overflow-hidden">
-                <img
-                  src={c.image}
-                  alt={`Studying in ${c.name}`}
-                  loading="lazy"
-                  className="size-full object-cover transition-transform duration-500 group-hover:scale-105"
-                />
-                <span className="surface-sun absolute left-4 top-4 inline-flex size-10 items-center justify-center rounded-xl font-display text-xs font-bold tracking-wider shadow-lift">
+              <div className="sheen relative h-40 overflow-hidden">
+                {c.image ? (
+                  <img
+                    src={c.image}
+                    alt={`Studying in ${c.name}`}
+                    loading="lazy"
+                    className="size-full object-cover transition-transform duration-700 ease-brand group-hover:scale-110"
+                  />
+                ) : (
+                  <CoverFallback label={c.flag} seed={c.slug} className="size-full" />
+                )}
+                <span className="surface-sun absolute left-4 top-4 z-2 inline-flex size-10 items-center justify-center rounded-xl font-display text-xs font-bold tracking-wider shadow-lift">
                   {c.flag}
                 </span>
               </div>
@@ -220,7 +235,7 @@ function Home() {
           ))}
         </Reveal>
         <p className="mt-6 text-sm text-muted-foreground">
-          Also guiding students to New Zealand, Europe and Japan.
+          Also guiding students to {alsoPlacing.slice(0, -1).join(", ")} and {alsoPlacing.at(-1)}.
         </p>
       </section>
 
@@ -274,7 +289,7 @@ function Home() {
               {services.map((s, i) => (
                 <div
                   key={s.title}
-                  className="card-lift group relative overflow-hidden rounded-2xl border border-border bg-card p-7 shadow-soft [--lift:-0.1875rem]"
+                  className="card-lift gradient-border spotlight group relative overflow-hidden rounded-2xl border border-border bg-card p-7 shadow-soft [--lift:-0.1875rem]"
                 >
                   <span className="font-display text-sm font-bold text-accent">
                     {String(i + 1).padStart(2, "0")}
@@ -318,23 +333,41 @@ function Home() {
       </section>
 
       {/* Why us: the brand band, and the tallest section on the page. */}
-      <section className="surface-brand grid-glow py-24 md:py-36">
-        <div className="mx-auto max-w-6xl px-5">
+      <section className="aurora relative overflow-hidden py-24 text-ink-foreground md:py-36">
+        <span aria-hidden="true" className="noise absolute inset-0" />
+        <div className="relative mx-auto max-w-6xl px-5">
           <Reveal className="max-w-2xl">
-            <h2 className="font-display text-3xl font-bold text-ink-foreground md:text-4xl">
+            <h2 className="font-display text-display-md font-bold text-ink-foreground">
               Why students choose us
             </h2>
           </Reveal>
-          <Reveal stagger className="mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-            {advantages.map((a) => {
+          {/*
+            Bento rather than a uniform three-across grid. Two of every four cards
+            run double width, alternating which side of the row they sit on, so a
+            group of four fills exactly two rows of three and the block never ends
+            on a lone card. `auto-rows-fr` keeps the heights honest across a row.
+          */}
+          <Reveal stagger className="mt-10 grid auto-rows-fr gap-5 md:grid-cols-2 lg:grid-cols-3">
+            {advantages.map((a, i) => {
               const Icon = advantageIcons[a.icon];
+              const wide = i % 4 === 0 || i % 4 === 3;
               return (
                 <div
                   key={a.title}
-                  className="rounded-2xl border border-ink-foreground/12 bg-ink-foreground/5 p-7 backdrop-blur-sm transition-colors duration-300 hover:border-accent/35 hover:bg-ink-foreground/10"
+                  className={`glass-ink spotlight group rounded-3xl border border-ink-foreground/12 p-7 transition-colors duration-300 hover:border-accent/35 ${
+                    wide ? "lg:col-span-2 lg:p-9" : ""
+                  }`}
                 >
-                  <Icon className="size-5 text-ink-foreground/55" />
-                  <h3 className="mt-4 text-lg font-semibold text-ink-foreground">{a.title}</h3>
+                  <span className="inline-flex size-11 items-center justify-center rounded-2xl bg-ink-foreground/10 text-accent transition-transform duration-300 ease-spring group-hover:scale-110">
+                    <Icon className="size-5" />
+                  </span>
+                  <h3
+                    className={`mt-5 font-semibold text-ink-foreground ${
+                      wide ? "text-xl lg:text-2xl" : "text-lg"
+                    }`}
+                  >
+                    {a.title}
+                  </h3>
                   <p className="mt-2 text-sm leading-relaxed text-ink-foreground/70">{a.detail}</p>
                 </div>
               );

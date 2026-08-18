@@ -1,8 +1,10 @@
 import {
   seedBlogPosts,
+  seedCountries,
   seedSuccessStories,
   seedTeamMembers,
   type BlogPost,
+  type Country,
   type SuccessStory,
   type TeamMember,
 } from "@/data/content";
@@ -209,9 +211,7 @@ export async function deleteEnquiry(id: string): Promise<void> {
 export async function fetchTeamMembers(): Promise<TeamMember[]> {
   const supabase = getSupabase();
   if (!supabase)
-    return seedTeamMembers
-      .filter((m) => m.published)
-      .sort((a, b) => a.sort_order - b.sort_order);
+    return seedTeamMembers.filter((m) => m.published).sort((a, b) => a.sort_order - b.sort_order);
 
   const { data, error } = await supabase
     .from("team_members")
@@ -221,9 +221,7 @@ export async function fetchTeamMembers(): Promise<TeamMember[]> {
 
   if (error || !data) {
     console.error("Falling back to seed team members:", error?.message);
-    return seedTeamMembers
-      .filter((m) => m.published)
-      .sort((a, b) => a.sort_order - b.sort_order);
+    return seedTeamMembers.filter((m) => m.published).sort((a, b) => a.sort_order - b.sort_order);
   }
   return data;
 }
@@ -261,4 +259,124 @@ export async function deleteTeamMember(id: string): Promise<void> {
   if (!supabase) throw new Error("Supabase is not configured.");
   const { error } = await supabase.from("team_members").delete().eq("id", id);
   if (error) throw new Error(error.message);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Study destinations                                                          */
+/* -------------------------------------------------------------------------- */
+
+const bySortOrder = (a: Country, b: Country) =>
+  a.sort_order - b.sort_order || a.name.localeCompare(b.name);
+
+const publishedSeedCountries = () => seedCountries.filter((c) => c.published).sort(bySortOrder);
+
+/**
+ * Published destinations, in display order.
+ *
+ * Unlike the other read helpers this also falls back to the seeds when the table
+ * is *empty*, not only when the request fails. The table ships empty and is
+ * filled from /admin, so until staff do that the fourteen destinations we
+ * counsel for still drive the site.
+ *
+ * Never throws: the header nav calls this on every route, so a database outage
+ * has to degrade to seed content rather than break every page.
+ */
+export async function fetchCountries(): Promise<Country[]> {
+  const supabase = getSupabase();
+  if (!supabase) return publishedSeedCountries();
+
+  const { data, error } = await supabase
+    .from("countries")
+    .select("*")
+    .eq("published", true)
+    .order("sort_order", { ascending: true });
+
+  if (error || !data) {
+    console.error("Falling back to seed countries:", error?.message);
+    return publishedSeedCountries();
+  }
+  return data.length > 0 ? data : publishedSeedCountries();
+}
+
+/** One published destination by slug, or null when there is no such country. */
+export async function fetchCountry(slug: string): Promise<Country | null> {
+  const supabase = getSupabase();
+  const fromSeed = () => seedCountries.find((c) => c.slug === slug && c.published) ?? null;
+  if (!supabase) return fromSeed();
+
+  const { data, error } = await supabase
+    .from("countries")
+    .select("*")
+    .eq("slug", slug)
+    .eq("published", true)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Falling back to seed country:", error.message);
+    return fromSeed();
+  }
+  // A miss can mean the table is still empty rather than a bad slug, so check
+  // the seeds before reporting not-found.
+  return data ?? fromSeed();
+}
+
+/**
+ * Admin listing: includes hidden destinations.
+ *
+ * Returns the live table as-is, empty included, so staff can tell the difference
+ * between "nothing saved yet" and "fourteen rows". The editor offers to import
+ * the seed defaults when it comes back empty.
+ */
+export async function adminListCountries(): Promise<Country[]> {
+  const supabase = getSupabase();
+  if (!supabase) throw new Error("Supabase is not configured.");
+
+  const { data, error } = await supabase
+    .from("countries")
+    .select("*")
+    .order("sort_order", { ascending: true });
+
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+export async function saveCountry(country: Country): Promise<void> {
+  const supabase = getSupabase();
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const { id, ...fields } = country;
+
+  const { error } = id
+    ? await supabase.from("countries").update(fields).eq("id", id)
+    : await supabase.from("countries").insert(fields);
+
+  if (error) throw new Error(error.message);
+}
+
+export async function deleteCountry(id: string): Promise<void> {
+  const supabase = getSupabase();
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const { error } = await supabase.from("countries").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+/**
+ * Copies the fourteen seed destinations into the table so staff can edit them.
+ *
+ * Skips any slug already present, so running it twice cannot duplicate a row or
+ * overwrite an edit. Returns how many were inserted.
+ */
+export async function importSeedCountries(): Promise<number> {
+  const supabase = getSupabase();
+  if (!supabase) throw new Error("Supabase is not configured.");
+
+  const existing = await adminListCountries();
+  const taken = new Set(existing.map((c) => c.slug));
+  const missing = seedCountries.filter((c) => !taken.has(c.slug));
+  if (missing.length === 0) return 0;
+
+  // Strip the seed ids: these are "seed-c1" placeholders, not uuids.
+  const rows = missing.map(({ id: _id, ...fields }) => fields);
+  const { error } = await supabase.from("countries").insert(rows);
+  if (error) throw new Error(error.message);
+  return rows.length;
 }

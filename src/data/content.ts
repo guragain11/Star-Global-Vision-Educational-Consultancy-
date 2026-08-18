@@ -5,7 +5,15 @@
  * are the seed/fallback content: they render whenever Supabase is not
  * configured yet, or while a live request is still in flight, so the site is
  * never blank.
+ *
+ * Study destinations follow the same pattern but live in their own module,
+ * `@/data/countries`, because their long-form copy would otherwise dominate
+ * this file. They are re-exported below so consumers have one import site.
  */
+
+import { seedDestinationNames } from "@/data/countries";
+
+export { seedCountries, countryTiers, type Country } from "@/data/countries";
 
 export type BlogPost = {
   id: string;
@@ -523,16 +531,15 @@ I am in Auckland, one semester in, and doing a research project with a geotechni
   },
 ];
 
-/** Destination options offered in the success-story filter and admin editor. */
-export const destinationNames = [
-  "Australia",
-  "U.S.A",
-  "Canada",
-  "U.K",
-  "New Zealand",
-  "Europe",
-  "Japan",
-] as const;
+/**
+ * Destination options offered in the success-story filter and admin editor.
+ *
+ * Derived from the seed destinations so this stays a synchronous constant, which
+ * the admin editor's default draft needs. Screens that have live country data
+ * loaded pass it in explicitly instead, so a destination added from /admin shows
+ * up here too.
+ */
+export const destinationNames: string[] = seedDestinationNames;
 
 /** Department options offered in the team member admin editor. */
 export const teamDepartments = [

@@ -49,7 +49,7 @@ export function FaqList({ items }: { items: readonly FaqItem[] }) {
                   }`}
                 >
                   <Plus
-                    className={`size-4 text-accent transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                    className={`size-4 text-accent transition-transform duration-300 ease-brand ${
                       isOpen ? "rotate-[135deg]" : ""
                     }`}
                   />
@@ -60,7 +60,7 @@ export function FaqList({ items }: { items: readonly FaqItem[] }) {
             <div
               id={`faq-panel-${i}`}
               inert={!isOpen}
-              className={`grid transition-[grid-template-rows] duration-400 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+              className={`grid transition-[grid-template-rows] duration-400 ease-brand ${
                 isOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
               }`}
             >

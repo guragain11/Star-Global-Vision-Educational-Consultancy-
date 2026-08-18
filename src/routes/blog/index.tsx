@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 
 import { PageHero, SectionHeading, SiteLayout } from "@/components/site/Chrome";
 import { BlogCard, EmptyState, FilterPills } from "@/components/site/ContentCards";
+import { Counter } from "@/components/site/Counter";
+import { Reveal } from "@/components/site/Reveal";
 import { fetchBlogPosts } from "@/lib/content-api";
 import { absoluteUrl, defaultOgImage } from "@/lib/seo";
 
@@ -58,22 +60,29 @@ function BlogIndex() {
   const [lead, ...rest] = filtered;
   const isUnfiltered = category === "All" && !search.trim();
 
+  /* Annotated rather than inferred: one entry is a word, not a number, and
+     without the annotation TypeScript infers three incompatible shapes and
+     refuses the `text` access below. `to: null` is the "don't count this one"
+     signal. */
+  const heroStats: { to: number | null; text?: string; label: string }[] = [
+    { to: posts.length, label: "Articles published" },
+    { to: categories.length, label: "Topics covered" },
+    { to: null, text: "Free", label: "Always, no signup" },
+  ];
+
   return (
     <SiteLayout>
       <PageHero
         eyebrow="Blog & resources"
         title="Guides written by the people who file the applications."
+        highlight={4}
         intro="Visa documentation, test strategy, scholarships and destination comparisons, written by the counsellors and teachers who handle these files every day."
       >
         <dl className="mt-10 grid max-w-lg grid-cols-2 gap-x-6 gap-y-6 sm:grid-cols-3">
-          {[
-            { value: String(posts.length), label: "Articles published" },
-            { value: String(categories.length), label: "Topics covered" },
-            { value: "Free", label: "Always, no signup" },
-          ].map((s) => (
+          {heroStats.map((s) => (
             <div key={s.label}>
               <dt className="font-display text-2xl font-bold text-ink-foreground md:text-3xl">
-                {s.value}
+                {s.to === null ? s.text : <Counter to={s.to} />}
               </dt>
               <dd className="mt-1 text-xs text-ink-foreground/60">{s.label}</dd>
             </div>
@@ -82,11 +91,13 @@ function BlogIndex() {
       </PageHero>
 
       <section className="mx-auto max-w-6xl px-5 py-14 md:py-20">
-        <SectionHeading
-          eyebrow="Browse by topic"
-          title="Find the guide for the stage you are at"
-          intro="Filter by topic, or search by keyword to go straight to the article that covers your question."
-        />
+        <Reveal>
+          <SectionHeading
+            eyebrow="Browse by topic"
+            title="Find the guide for the stage you are at"
+            intro="Filter by topic, or search by keyword to go straight to the article that covers your question."
+          />
+        </Reveal>
 
         <div className="mt-8 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <FilterPills

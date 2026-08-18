@@ -1,8 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { fetchBlogPosts, fetchSuccessStories } from "@/lib/content-api";
+import { fetchBlogPosts, fetchCountries, fetchSuccessStories } from "@/lib/content-api";
 import { absoluteUrl } from "@/lib/seo";
-import { countries } from "@/data/site";
 
 /**
  * The pages that aren't driven by Supabase, in nav order. `/admin` is left out
@@ -68,7 +67,7 @@ function urlTag(entry: UrlEntry): string {
 
 /**
  * Built per request rather than at build time, so a post published from /admin
- * shows up in the sitemap without a redeploy. Both fetches fall back to the
+ * shows up in the sitemap without a redeploy. Every fetch falls back to the
  * seed content in src/data/content.ts if Supabase is unreachable, so a database
  * outage degrades to the static pages plus seeds instead of a 500.
  */
@@ -76,20 +75,24 @@ export const Route = createFileRoute("/sitemap.xml")({
   server: {
     handlers: {
       GET: async () => {
-        const [posts, stories] = await Promise.all([fetchBlogPosts(), fetchSuccessStories()]);
+        const [posts, stories, countries] = await Promise.all([
+          fetchBlogPosts(),
+          fetchSuccessStories(),
+          fetchCountries(),
+        ]);
 
         const entries = [
           ...staticPages.map((page) => urlTag(page)),
-          // Country pages with their images.
+          // One indexable page per destination, with its hero image. No
+          // `lastmod`: the Country type carries only content columns, and
+          // guessing a date is worse for crawlers than omitting it.
           ...countries.map((c) =>
             urlTag({
-              path: `/countries#${c.slug}`,
+              path: `/countries/${c.slug}`,
               lastmod: null,
               changefreq: "monthly",
-              priority: "0.9",
-              images: c.image
-                ? [{ loc: c.image, title: `Study in ${c.name}` }]
-                : [],
+              priority: "0.8",
+              images: c.image ? [{ loc: c.image, title: `Study in ${c.name}` }] : [],
             }),
           ),
           ...posts.map((post) =>
@@ -98,9 +101,7 @@ export const Route = createFileRoute("/sitemap.xml")({
               lastmod: lastmod(post.published_at),
               changefreq: "monthly",
               priority: "0.6",
-              images: post.cover_image
-                ? [{ loc: post.cover_image, title: post.title }]
-                : [],
+              images: post.cover_image ? [{ loc: post.cover_image, title: post.title }] : [],
             }),
           ),
           ...stories.map((story) =>
@@ -109,9 +110,7 @@ export const Route = createFileRoute("/sitemap.xml")({
               lastmod: lastmod(story.published_at),
               changefreq: "yearly",
               priority: "0.5",
-              images: story.photo
-                ? [{ loc: story.photo, title: story.student_name }]
-                : [],
+              images: story.photo ? [{ loc: story.photo, title: story.student_name }] : [],
             }),
           ),
         ];

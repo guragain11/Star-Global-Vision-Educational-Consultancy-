@@ -1,8 +1,10 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   BookOpen,
+  DownloadCloud,
   ExternalLink,
+  Globe2,
   Inbox,
   Loader2,
   LogOut,
@@ -19,24 +21,30 @@ import { useState } from "react";
 import { AdminShell, LoginCard, Notice, SetupNotice } from "@/components/admin/AdminUI";
 import {
   BlogEditor,
+  CountryEditor,
   StoryEditor,
   TeamEditor,
   type BlogDraft,
+  type CountryDraft,
   type StoryDraft,
   type TeamDraft,
 } from "@/components/admin/Editors";
-import type { BlogPost, SuccessStory, TeamMember } from "@/data/content";
+import type { BlogPost, Country, SuccessStory, TeamMember } from "@/data/content";
 import { site, telHref } from "@/data/site";
 import {
   adminListBlogPosts,
+  adminListCountries,
   adminListEnquiries,
   adminListSuccessStories,
   adminListTeamMembers,
   deleteBlogPost,
+  deleteCountry,
   deleteEnquiry,
   deleteSuccessStory,
   deleteTeamMember,
+  importSeedCountries,
   saveBlogPost,
+  saveCountry,
   saveSuccessStory,
   saveTeamMember,
   updateEnquiry,
@@ -88,7 +96,7 @@ function AdminPage() {
   return <Dashboard email={email} onSignOut={signOut} />;
 }
 
-type Tab = "blog" | "stories" | "team" | "enquiries";
+type Tab = "blog" | "stories" | "countries" | "team" | "enquiries";
 
 function Dashboard({ email, onSignOut }: { email: string | null; onSignOut: () => Promise<void> }) {
   const [tab, setTab] = useState<Tab>("blog");
@@ -139,6 +147,7 @@ function Dashboard({ email, onSignOut }: { email: string | null; onSignOut: () =
             [
               { id: "blog", label: "Blog posts", icon: BookOpen, badge: 0 },
               { id: "stories", label: "Success stories", icon: Trophy, badge: 0 },
+              { id: "countries", label: "Destinations", icon: Globe2, badge: 0 },
               { id: "team", label: "Team", icon: Users, badge: 0 },
               { id: "enquiries", label: "Enquiries", icon: Inbox, badge: unread },
             ] as const
@@ -168,6 +177,7 @@ function Dashboard({ email, onSignOut }: { email: string | null; onSignOut: () =
       <main className="mx-auto w-full max-w-6xl flex-1 px-5 py-10">
         {tab === "blog" && <BlogManager />}
         {tab === "stories" && <StoryManager />}
+        {tab === "countries" && <CountryManager />}
         {tab === "team" && <TeamManager />}
         {tab === "enquiries" && <EnquiryManager />}
       </main>
@@ -398,7 +408,7 @@ function StoryManager() {
                       className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                     />
                   ) : (
-                    <div className="flex h-full items-center justify-center bg-gradient-to-br from-primary/10 to-accent/10">
+                    <div className="flex h-full items-center justify-center bg-linear-to-br from-primary/10 to-accent/10">
                       <span className="font-display text-4xl font-bold text-primary/30">
                         {story.student_name.slice(0, 2).toUpperCase()}
                       </span>
@@ -548,8 +558,8 @@ function TeamManager() {
                     className="size-20 rounded-full object-cover shadow-hair ring-4 ring-primary/10 transition-transform duration-300 group-hover:scale-105"
                   />
                 ) : (
-                  <div className="flex size-20 items-center justify-center rounded-full bg-gradient-to-br from-primary to-accent shadow-hair ring-4 ring-primary/10 transition-transform duration-300 group-hover:scale-105">
-                    <span className="font-display text-xl font-bold text-white">
+                  <div className="surface-sun flex size-20 items-center justify-center rounded-full shadow-hair ring-4 ring-primary/10 transition-transform duration-300 ease-brand group-hover:scale-105">
+                    <span className="font-display text-xl font-bold">
                       {member.name.slice(0, 2).toUpperCase()}
                     </span>
                   </div>
@@ -589,6 +599,239 @@ function TeamManager() {
               </div>
             ))}
           </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Destination manager                                                        */
+/* -------------------------------------------------------------------------- */
+
+function CountryManager() {
+  const queryClient = useQueryClient();
+  const router = useRouter();
+  const [editing, setEditing] = useState<Country | null | undefined>(undefined);
+
+  const { data, isPending, error } = useQuery({
+    queryKey: ["admin", "countries"],
+    queryFn: adminListCountries,
+  });
+
+  const invalidate = () => {
+    void queryClient.invalidateQueries({ queryKey: ["admin", "countries"] });
+    setEditing(undefined);
+    /*
+      The public destination list comes from the root route loader, not a query,
+      because the header renders it on every page. Invalidating the router is
+      what pushes a change out to the nav, the country guide, the enquiry
+      dropdowns and the sitemap in one go.
+    */
+    void router.invalidate();
+  };
+
+  const save = useMutation({
+    mutationFn: ({ draft, id }: { draft: CountryDraft; id?: string }) =>
+      saveCountry({ ...draft, id: id ?? "" }),
+    onSuccess: invalidate,
+  });
+
+  const remove = useMutation({
+    mutationFn: (id: string) => deleteCountry(id),
+    onSuccess: invalidate,
+  });
+
+  const importSeeds = useMutation({
+    mutationFn: importSeedCountries,
+    onSuccess: invalidate,
+  });
+
+  if (editing !== undefined) {
+    return (
+      <CountryEditor
+        initial={editing}
+        onCancel={() => setEditing(undefined)}
+        onSave={(draft, id) => save.mutateAsync(id ? { draft, id } : { draft })}
+        onDelete={(id) => remove.mutateAsync(id)}
+      />
+    );
+  }
+
+  const live = data?.filter((c) => c.published).length ?? 0;
+
+  return (
+    <>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 className="font-display text-2xl font-bold">Destinations</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {data
+              ? `${data.length} destination${data.length === 1 ? "" : "s"}, ${live} live on the site`
+              : "Loading…"}
+          </p>
+        </div>
+        <button
+          onClick={() => setEditing(null)}
+          className="surface-brand press inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold shadow-soft hover:-translate-y-0.5 hover:shadow-lift"
+        >
+          <Plus className="size-4" /> Add destination
+        </button>
+      </div>
+
+      <div className="mt-8">
+        {error ? (
+          <Notice tone="error">{(error as Error).message}</Notice>
+        ) : isPending ? (
+          <CardSkeletonGrid />
+        ) : data.length === 0 ? (
+          <div className="rounded-3xl border border-dashed border-border bg-card/60 px-6 py-16 text-center">
+            <h2 className="font-display text-lg font-semibold">No destinations saved yet</h2>
+            <p className="mx-auto mt-2 max-w-lg text-sm leading-relaxed text-muted-foreground">
+              The site is currently showing the fourteen destinations built into the code. Import
+              them here to make each one editable — the pages will not change, they simply become
+              yours to edit. Or start from scratch and add your own.
+            </p>
+            <div className="mt-7 flex flex-wrap justify-center gap-3">
+              <button
+                onClick={() => importSeeds.mutate()}
+                disabled={importSeeds.isPending}
+                className="surface-brand press inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-semibold shadow-soft hover:-translate-y-0.5 hover:shadow-lift disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {importSeeds.isPending ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <DownloadCloud className="size-4" />
+                )}
+                Import the 14 defaults
+              </button>
+              <button
+                onClick={() => setEditing(null)}
+                className="press inline-flex items-center gap-2 rounded-full border border-border px-6 py-3 text-sm font-semibold text-muted-foreground hover:border-primary/40 hover:text-primary"
+              >
+                <Plus className="size-4" /> Start from scratch
+              </button>
+            </div>
+            {importSeeds.error && (
+              <div className="mx-auto mt-6 max-w-lg text-left">
+                <Notice tone="error">{(importSeeds.error as Error).message}</Notice>
+              </div>
+            )}
+          </div>
+        ) : (
+          <>
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {data.map((country) => (
+                <div
+                  key={country.id}
+                  className="card-lift group flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-soft [--lift:-0.125rem]"
+                >
+                  <div className="relative h-36 overflow-hidden bg-secondary/50">
+                    {country.image ? (
+                      <img
+                        src={country.image}
+                        alt=""
+                        className="size-full object-cover transition-transform duration-500 ease-brand group-hover:scale-105"
+                      />
+                    ) : (
+                      <div className="flex size-full items-center justify-center bg-linear-to-br from-primary/10 to-accent/10">
+                        <span className="font-display text-3xl font-bold text-primary/30">
+                          {country.flag || country.name.slice(0, 2).toUpperCase()}
+                        </span>
+                      </div>
+                    )}
+                    <div className="absolute left-3 top-3 flex flex-wrap gap-2">
+                      <StatusPill published={country.published} />
+                      {country.tier === "primary" && (
+                        <span className="surface-sun rounded-full px-2.5 py-0.5 text-[0.65rem] font-bold uppercase tracking-wider">
+                          Flagship
+                        </span>
+                      )}
+                    </div>
+                    <span className="absolute right-3 top-3 rounded-full bg-ink/70 px-2.5 py-0.5 text-[0.65rem] font-bold text-ink-foreground backdrop-blur-sm">
+                      #{country.sort_order}
+                    </span>
+                  </div>
+
+                  <div className="flex flex-1 flex-col p-4">
+                    <h2 className="font-semibold leading-snug">{country.name}</h2>
+                    <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+                      {country.blurb || "No blurb yet"}
+                    </p>
+
+                    <dl className="mt-3 grid gap-1 text-[0.65rem] text-muted-foreground">
+                      <div className="flex gap-1.5">
+                        <dt className="font-semibold">Intakes:</dt>
+                        <dd className="truncate">{country.intakes || "—"}</dd>
+                      </div>
+                      <div className="flex gap-1.5">
+                        <dt className="font-semibold">Universities:</dt>
+                        <dd>{country.universities.length}</dd>
+                      </div>
+                    </dl>
+
+                    <div className="mt-auto flex items-center gap-2 pt-4">
+                      {country.published && (
+                        <Link
+                          to="/countries/$slug"
+                          params={{ slug: country.slug }}
+                          target="_blank"
+                          className="rounded-full border border-border p-2 text-muted-foreground transition-colors hover:text-primary"
+                          aria-label={`View the ${country.name} page`}
+                        >
+                          <ExternalLink className="size-3.5" />
+                        </Link>
+                      )}
+                      <button
+                        onClick={() => setEditing(country)}
+                        className="press inline-flex flex-1 items-center justify-center gap-1.5 rounded-full border border-border px-4 py-2 text-sm font-medium hover:border-primary/40 hover:text-primary"
+                      >
+                        <Pencil className="size-3.5" /> Edit
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/*
+              Still offered once rows exist, because it is also the recovery path
+              after someone deletes a destination they wanted back. It skips any
+              slug already present, so it can never duplicate or overwrite.
+            */}
+            <div className="mt-8 flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-card/60 px-5 py-4">
+              <p className="flex-1 text-xs leading-relaxed text-muted-foreground">
+                Missing one of the fourteen destinations the site shipped with? Importing again adds
+                only the ones that are not already in this list — it never overwrites your edits.
+              </p>
+              <button
+                onClick={() => importSeeds.mutate()}
+                disabled={importSeeds.isPending}
+                className="press inline-flex shrink-0 items-center gap-2 rounded-full border border-border px-4 py-2 text-xs font-semibold hover:border-primary/40 hover:text-primary disabled:opacity-60"
+              >
+                {importSeeds.isPending ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <DownloadCloud className="size-3.5" />
+                )}
+                Import missing defaults
+              </button>
+            </div>
+            {importSeeds.isSuccess && (
+              <div className="mt-4">
+                <Notice tone={importSeeds.data > 0 ? "success" : "info"}>
+                  {importSeeds.data > 0
+                    ? `Imported ${importSeeds.data} destination${importSeeds.data === 1 ? "" : "s"}.`
+                    : "Nothing to import — every default destination is already in the list."}
+                </Notice>
+              </div>
+            )}
+            {importSeeds.error && (
+              <div className="mt-4">
+                <Notice tone="error">{(importSeeds.error as Error).message}</Notice>
+              </div>
+            )}
+          </>
         )}
       </div>
     </>
@@ -870,9 +1113,12 @@ function CardSkeletonGrid() {
   return (
     <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
       {Array.from({ length: 6 }).map((_, i) => (
-        <div key={i} className="animate-pulse rounded-2xl border border-border bg-card overflow-hidden">
+        <div
+          key={i}
+          className="animate-pulse overflow-hidden rounded-2xl border border-border bg-card"
+        >
           <div className="h-40 bg-secondary/50" />
-          <div className="p-4 space-y-3">
+          <div className="space-y-3 p-4">
             <div className="h-4 w-16 rounded-full bg-secondary/50" />
             <div className="h-5 w-3/4 rounded bg-secondary/50" />
             <div className="h-3 w-full rounded bg-secondary/50" />

@@ -71,14 +71,51 @@ create table if not exists public.team_members (
 create index if not exists team_members_sort_idx
   on public.team_members (sort_order, name);
 
-drop trigger if exists team_members_set_updated_at on public.team_members;
-create trigger team_members_set_updated_at
-  before update on public.team_members
-  for each row execute function public.set_updated_at();
+-- ---------------------------------------------------------------------------
+-- Study destinations
+-- ---------------------------------------------------------------------------
+-- Drives /countries, the per-country pages, the header Destinations menu and
+-- the enquiry dropdowns. `published = false` hides a destination from all of
+-- them at once while keeping the row editable in /admin.
+--
+-- Starts empty. The fourteen destinations the office counsels for ship as seed
+-- content in src/data/content.ts and render until this table has rows, so the
+-- site is never without a destination list. /admin offers a one-click action to
+-- copy those defaults in here once staff want to edit them.
+create table if not exists public.countries (
+  id           uuid        primary key default gen_random_uuid(),
+  slug         text        not null unique,
+  name         text        not null,
+  -- ISO-ish two letter code, used for the flag chip in the nav.
+  flag         text        not null default '',
+  -- 'primary' marks the destinations we place the most students in.
+  tier         text        not null default 'secondary'
+                 check (tier in ('primary', 'secondary')),
+  blurb        text        not null default '',
+  overview     text        not null default '',
+  highlights   text[]      not null default '{}',
+  intakes      text        not null default '',
+  work         text        not null default '',
+  tests        text        not null default '',
+  tuition      text        not null default '',
+  cost_living  text        not null default '',
+  requirements text        not null default '',
+  universities text[]      not null default '{}',
+  image        text,
+  sort_order   integer     not null default 0,
+  published    boolean     not null default true,
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now()
+);
+
+create index if not exists countries_sort_idx
+  on public.countries (published, sort_order, name);
 
 -- ---------------------------------------------------------------------------
 -- Keep updated_at current on every write
 -- ---------------------------------------------------------------------------
+-- Defined before the triggers that reference it, so this file runs top to
+-- bottom on an empty database.
 create or replace function public.set_updated_at()
 returns trigger
 language plpgsql
@@ -99,12 +136,23 @@ create trigger success_stories_set_updated_at
   before update on public.success_stories
   for each row execute function public.set_updated_at();
 
+drop trigger if exists team_members_set_updated_at on public.team_members;
+create trigger team_members_set_updated_at
+  before update on public.team_members
+  for each row execute function public.set_updated_at();
+
+drop trigger if exists countries_set_updated_at on public.countries;
+create trigger countries_set_updated_at
+  before update on public.countries
+  for each row execute function public.set_updated_at();
+
 -- ---------------------------------------------------------------------------
 -- Row level security
 -- ---------------------------------------------------------------------------
 alter table public.blog_posts      enable row level security;
 alter table public.success_stories enable row level security;
 alter table public.team_members    enable row level security;
+alter table public.countries       enable row level security;
 
 -- Public read access, published rows only.
 drop policy if exists "Published posts are readable by anyone" on public.blog_posts;
@@ -174,6 +222,29 @@ create policy "Admins update team members"
 drop policy if exists "Admins delete team members" on public.team_members;
 create policy "Admins delete team members"
   on public.team_members for delete to authenticated using (true);
+
+-- Countries: published destinations readable by anyone, full access for admins.
+drop policy if exists "Published countries readable by anyone" on public.countries;
+create policy "Published countries readable by anyone"
+  on public.countries for select
+  to anon, authenticated
+  using (published = true);
+
+drop policy if exists "Admins read every country" on public.countries;
+create policy "Admins read every country"
+  on public.countries for select to authenticated using (true);
+
+drop policy if exists "Admins write countries" on public.countries;
+create policy "Admins write countries"
+  on public.countries for insert to authenticated with check (true);
+
+drop policy if exists "Admins update countries" on public.countries;
+create policy "Admins update countries"
+  on public.countries for update to authenticated using (true) with check (true);
+
+drop policy if exists "Admins delete countries" on public.countries;
+create policy "Admins delete countries"
+  on public.countries for delete to authenticated using (true);
 
 -- ---------------------------------------------------------------------------
 -- Enquiries (contact form submissions)

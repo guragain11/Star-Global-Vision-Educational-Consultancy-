@@ -14,9 +14,10 @@ import {
 import { useState } from "react";
 
 import { PageHero, SiteLayout } from "@/components/site/Chrome";
-import { countries, site, telHref, tests } from "@/data/site";
+import { site, telHref, tests } from "@/data/site";
 import { submitEnquiry } from "@/lib/content-api";
 import { absoluteUrl, defaultOgImage } from "@/lib/seo";
+import { useCountries } from "@/lib/use-countries";
 
 export const Route = createFileRoute("/contact")({
   head: () => ({
@@ -96,6 +97,7 @@ function Contact() {
       <PageHero
         eyebrow="Contact"
         title="Come in for a free counselling session."
+        highlight={3}
         intro="Walk into our Bagbazar-28 office, call us, or send an enquiry. We usually reply the same working day."
       />
 
@@ -197,14 +199,21 @@ const fieldClass =
 /* Enquiry form                                                               */
 /* -------------------------------------------------------------------------- */
 
-const emptyEnquiry = {
+/**
+ * A blank form. Takes the default destination as an argument because the country
+ * list now comes from the database through the root loader, so it is only known
+ * once the component renders.
+ */
+const emptyEnquiry = (destination: string) => ({
   name: "",
   phone: "",
   email: "",
-  destination: countries[0]?.name ?? "Australia",
+  destination,
   test: "Not required",
   message: "",
-};
+});
+
+type EnquiryValues = ReturnType<typeof emptyEnquiry>;
 
 /**
  * Writes straight into the `enquiries` table, which staff read from /admin.
@@ -214,12 +223,14 @@ const emptyEnquiry = {
  * coming back as a database error.
  */
 function EnquiryForm() {
-  const [values, setValues] = useState(emptyEnquiry);
+  const countries = useCountries();
+  const blank = emptyEnquiry(countries[0]?.name ?? "Australia");
+  const [values, setValues] = useState(blank);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
 
-  const set = (key: keyof typeof emptyEnquiry, value: string) =>
+  const set = (key: keyof EnquiryValues, value: string) =>
     setValues((v) => ({ ...v, [key]: value }));
 
   const submit = async (event: React.FormEvent) => {
@@ -252,7 +263,7 @@ function EnquiryForm() {
         message,
       });
       setSent(true);
-      setValues(emptyEnquiry);
+      setValues(blank);
     } catch (err) {
       setError(
         err instanceof Error

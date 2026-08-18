@@ -3,9 +3,11 @@ import { ArrowLeft, BookOpen, CalendarDays, GraduationCap, MapPin, Quote } from 
 
 import { CtaBand, SiteLayout } from "@/components/site/Chrome";
 import { StoryCard } from "@/components/site/ContentCards";
+import { Reveal } from "@/components/site/Reveal";
 import { RichText } from "@/components/site/RichText";
 import { fetchSuccessStories, fetchSuccessStory } from "@/lib/content-api";
 import { formatDate, initials, toPlainText } from "@/lib/content-utils";
+import { magneticProps } from "@/lib/pointer-effects";
 import { absoluteUrl, breadcrumbJsonLd } from "@/lib/seo";
 
 export const Route = createFileRoute("/success-stories/$slug")({
@@ -105,13 +107,16 @@ function StoryDetail() {
   return (
     <SiteLayout>
       <article>
-        <header className="surface-brand relative overflow-hidden">
+        {/* Same `aurora` treatment as the other article heroes. It carries no
+            `color` of its own, so ink foreground is named alongside it. */}
+        <header className="aurora relative overflow-hidden text-ink-foreground">
+          <span aria-hidden="true" className="noise absolute inset-0" />
           <div className="relative mx-auto max-w-5xl px-5 py-16 md:py-20">
             <Link
               to="/success-stories"
-              className="group inline-flex items-center gap-2 text-sm font-medium text-ink-foreground/70 transition-colors hover:text-ink-foreground"
+              className="group inline-flex items-center gap-2 text-sm font-medium text-ink-foreground/70 transition-colors duration-200 hover:text-ink-foreground"
             >
-              <ArrowLeft className="size-4 transition-transform duration-300 group-hover:-translate-x-0.5" />
+              <ArrowLeft className="size-4 transition-transform duration-300 ease-brand group-hover:-translate-x-0.5" />
               All success stories
             </Link>
 
@@ -133,7 +138,7 @@ function StoryDetail() {
                 <p className="eyebrow">
                   {story.country} · {story.intake}
                 </p>
-                <h1 className="mt-3 font-display text-3xl font-bold leading-tight text-ink-foreground md:text-5xl">
+                <h1 className="mt-3 text-balance font-display text-display-md font-bold text-ink-foreground">
                   {story.student_name}
                 </h1>
                 <p className="mt-3 text-base font-semibold text-ink-foreground/90 md:text-lg">
@@ -149,7 +154,10 @@ function StoryDetail() {
           <div className="grid gap-10 lg:grid-cols-[1fr_18rem] lg:items-start">
             <div>
               {story.quote && (
-                <blockquote className="gradient-border rounded-3xl border border-border bg-card p-7 shadow-soft md:p-9">
+                <Reveal
+                  as="blockquote"
+                  className="gradient-border spotlight rounded-3xl border border-border bg-card p-7 shadow-soft md:p-9"
+                >
                   <Quote className="size-7 text-accent" />
                   <p className="mt-4 font-display text-lg leading-relaxed text-card-foreground md:text-xl">
                     “{story.quote}”
@@ -157,10 +165,14 @@ function StoryDetail() {
                   <footer className="mt-5 text-sm font-semibold text-muted-foreground">
                     {story.student_name}
                   </footer>
-                </blockquote>
+                </Reveal>
               )}
 
-              {story.story && <RichText source={story.story} className="mt-10" />}
+              {story.story && (
+                <Reveal delay={80}>
+                  <RichText source={story.story} className="mt-10" />
+                </Reveal>
+              )}
             </div>
 
             <aside className="lg:sticky lg:top-32">
@@ -181,7 +193,8 @@ function StoryDetail() {
                 </p>
                 <Link
                   to="/contact"
-                  className="surface-brand press mt-4 block rounded-full px-5 py-3 text-center text-sm font-semibold shadow-soft hover:-translate-y-0.5 hover:shadow-lift"
+                  {...magneticProps(4)}
+                  className="surface-sun magnetic mt-4 block rounded-full px-5 py-3 text-center text-sm font-bold shadow-soft hover:shadow-lift"
                 >
                   Start your application
                 </Link>
@@ -189,28 +202,30 @@ function StoryDetail() {
             </aside>
           </div>
 
-          <div className="mt-16">
+          <Reveal className="mt-16">
             <CtaBand
               variant="quiet"
               title="Ready to write your own story?"
               intro="Free profile assessment, a realistic shortlist and documentation handled properly from the first day."
               primary={{ to: "/contact", label: "Book free counselling" }}
             />
-          </div>
+          </Reveal>
         </div>
       </article>
 
       {related.length > 0 && (
         <section className="border-t border-border bg-secondary/50 py-16 md:py-20">
           <div className="mx-auto max-w-6xl px-5">
-            <h2 className="font-display text-2xl font-bold md:text-3xl">
-              Students we placed alongside {story.student_name.split(" ")[0]}
-            </h2>
-            <div className="mt-8 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            <Reveal>
+              <h2 className="font-display text-2xl font-bold md:text-3xl">
+                Students we placed alongside {story.student_name.split(" ")[0]}
+              </h2>
+            </Reveal>
+            <Reveal stagger className="mt-8 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {related.map((item) => (
                 <StoryCard key={item.id} story={item} />
               ))}
-            </div>
+            </Reveal>
           </div>
         </section>
       )}

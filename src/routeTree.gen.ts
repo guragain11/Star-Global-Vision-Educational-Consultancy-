@@ -18,6 +18,8 @@ import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as TestPreparationRouteImport } from './routes/test-preparation'
 import { Route as BlogIndexRouteImport } from './routes/blog/index'
 import { Route as BlogSlugRouteImport } from './routes/blog/$slug'
+import { Route as CountriesIndexRouteImport } from './routes/countries/index'
+import { Route as CountriesSlugRouteImport } from './routes/countries/$slug'
 import { Route as SuccessStoriesIndexRouteImport } from './routes/success-stories/index'
 import { Route as SuccessStoriesSlugRouteImport } from './routes/success-stories/$slug'
 
@@ -66,6 +68,16 @@ const BlogSlugRoute = BlogSlugRouteImport.update({
   path: '/blog/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CountriesIndexRoute = CountriesIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => CountriesRoute,
+} as any)
+const CountriesSlugRoute = CountriesSlugRouteImport.update({
+  id: '/$slug',
+  path: '/$slug',
+  getParentRoute: () => CountriesRoute,
+} as any)
 const SuccessStoriesIndexRoute = SuccessStoriesIndexRouteImport.update({
   id: '/success-stories/',
   path: '/success-stories/',
@@ -82,12 +94,14 @@ export interface FileRoutesByFullPath {
   '/about': typeof AboutRoute
   '/admin': typeof AdminRoute
   '/contact': typeof ContactRoute
-  '/countries': typeof CountriesRoute
+  '/countries': typeof CountriesRouteWithChildren
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/test-preparation': typeof TestPreparationRoute
   '/blog/$slug': typeof BlogSlugRoute
+  '/countries/$slug': typeof CountriesSlugRoute
   '/success-stories/$slug': typeof SuccessStoriesSlugRoute
   '/blog/': typeof BlogIndexRoute
+  '/countries/': typeof CountriesIndexRoute
   '/success-stories/': typeof SuccessStoriesIndexRoute
 }
 export interface FileRoutesByTo {
@@ -95,12 +109,13 @@ export interface FileRoutesByTo {
   '/about': typeof AboutRoute
   '/admin': typeof AdminRoute
   '/contact': typeof ContactRoute
-  '/countries': typeof CountriesRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/test-preparation': typeof TestPreparationRoute
   '/blog/$slug': typeof BlogSlugRoute
+  '/countries/$slug': typeof CountriesSlugRoute
   '/success-stories/$slug': typeof SuccessStoriesSlugRoute
   '/blog': typeof BlogIndexRoute
+  '/countries': typeof CountriesIndexRoute
   '/success-stories': typeof SuccessStoriesIndexRoute
 }
 export interface FileRoutesById {
@@ -109,12 +124,14 @@ export interface FileRoutesById {
   '/about': typeof AboutRoute
   '/admin': typeof AdminRoute
   '/contact': typeof ContactRoute
-  '/countries': typeof CountriesRoute
+  '/countries': typeof CountriesRouteWithChildren
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/test-preparation': typeof TestPreparationRoute
   '/blog/$slug': typeof BlogSlugRoute
+  '/countries/$slug': typeof CountriesSlugRoute
   '/success-stories/$slug': typeof SuccessStoriesSlugRoute
   '/blog/': typeof BlogIndexRoute
+  '/countries/': typeof CountriesIndexRoute
   '/success-stories/': typeof SuccessStoriesIndexRoute
 }
 export interface FileRouteTypes {
@@ -128,8 +145,10 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/test-preparation'
     | '/blog/$slug'
+    | '/countries/$slug'
     | '/success-stories/$slug'
     | '/blog/'
+    | '/countries/'
     | '/success-stories/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -137,12 +156,13 @@ export interface FileRouteTypes {
     | '/about'
     | '/admin'
     | '/contact'
-    | '/countries'
     | '/sitemap.xml'
     | '/test-preparation'
     | '/blog/$slug'
+    | '/countries/$slug'
     | '/success-stories/$slug'
     | '/blog'
+    | '/countries'
     | '/success-stories'
   id:
     | '__root__'
@@ -154,8 +174,10 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/test-preparation'
     | '/blog/$slug'
+    | '/countries/$slug'
     | '/success-stories/$slug'
     | '/blog/'
+    | '/countries/'
     | '/success-stories/'
   fileRoutesById: FileRoutesById
 }
@@ -164,7 +186,7 @@ export interface RootRouteChildren {
   AboutRoute: typeof AboutRoute
   AdminRoute: typeof AdminRoute
   ContactRoute: typeof ContactRoute
-  CountriesRoute: typeof CountriesRoute
+  CountriesRoute: typeof CountriesRouteWithChildren
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   TestPreparationRoute: typeof TestPreparationRoute
   BlogSlugRoute: typeof BlogSlugRoute
@@ -238,6 +260,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BlogSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/countries/': {
+      id: '/countries/'
+      path: '/'
+      fullPath: '/countries/'
+      preLoaderRoute: typeof CountriesIndexRouteImport
+      parentRoute: typeof CountriesRoute
+    }
+    '/countries/$slug': {
+      id: '/countries/$slug'
+      path: '/$slug'
+      fullPath: '/countries/$slug'
+      preLoaderRoute: typeof CountriesSlugRouteImport
+      parentRoute: typeof CountriesRoute
+    }
     '/success-stories/': {
       id: '/success-stories/'
       path: '/success-stories'
@@ -255,12 +291,26 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface CountriesRouteChildren {
+  CountriesSlugRoute: typeof CountriesSlugRoute
+  CountriesIndexRoute: typeof CountriesIndexRoute
+}
+
+const CountriesRouteChildren: CountriesRouteChildren = {
+  CountriesSlugRoute: CountriesSlugRoute,
+  CountriesIndexRoute: CountriesIndexRoute,
+}
+
+const CountriesRouteWithChildren = CountriesRoute._addFileChildren(
+  CountriesRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AboutRoute: AboutRoute,
   AdminRoute: AdminRoute,
   ContactRoute: ContactRoute,
-  CountriesRoute: CountriesRoute,
+  CountriesRoute: CountriesRouteWithChildren,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   TestPreparationRoute: TestPreparationRoute,
   BlogSlugRoute: BlogSlugRoute,

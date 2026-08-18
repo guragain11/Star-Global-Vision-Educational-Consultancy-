@@ -48,9 +48,7 @@ export function faqJsonLd(items: readonly FaqItem[]): string {
  * JSON-LD for a BreadcrumbList, useful for nested pages like /blog/$slug
  * and /success-stories/$slug.
  */
-export function breadcrumbJsonLd(
-  items: readonly { name: string; url: string }[],
-): string {
+export function breadcrumbJsonLd(items: readonly { name: string; url: string }[]): string {
   return JSON.stringify({
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",

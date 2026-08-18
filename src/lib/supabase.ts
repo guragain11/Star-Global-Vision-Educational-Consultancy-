@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
-import type { BlogPost, SuccessStory, TeamMember } from "@/data/content";
+import type { BlogPost, Country, SuccessStory, TeamMember } from "@/data/content";
 
 /**
  * A contact form submission. Anyone may insert one; only a signed-in staff
@@ -52,6 +52,7 @@ export type Database = {
       blog_posts: TableShape<BlogPost>;
       success_stories: TableShape<SuccessStory>;
       team_members: TableShape<TeamMember>;
+      countries: TableShape<Country>;
       enquiries: {
         Row: Enquiry;
         // Timestamps and the staff-only columns are all defaulted in Postgres.

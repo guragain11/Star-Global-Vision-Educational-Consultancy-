@@ -81,7 +81,10 @@ function buildPath(folder: string, file: File): string {
  * Throws with the Supabase message when the request fails, which surfaces
  * "new row violates row-level security policy" if the session has expired.
  */
-export async function uploadImage(file: File, folder: "blog" | "stories" | "team"): Promise<string> {
+export async function uploadImage(
+  file: File,
+  folder: "blog" | "stories" | "team" | "countries",
+): Promise<string> {
   const supabase = getSupabase();
   if (!supabase) throw new Error("Supabase is not configured.");
 

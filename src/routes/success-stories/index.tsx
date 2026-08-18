@@ -3,9 +3,11 @@ import { useMemo, useState } from "react";
 
 import { CtaBand, PageHero, SectionHeading, SiteLayout } from "@/components/site/Chrome";
 import { EmptyState, FilterPills, StoryCard } from "@/components/site/ContentCards";
-import { stats } from "@/data/site";
+import { Counter } from "@/components/site/Counter";
+import { Reveal } from "@/components/site/Reveal";
 import { fetchSuccessStories } from "@/lib/content-api";
 import { absoluteUrl, defaultOgImage } from "@/lib/seo";
+import { useStats } from "@/lib/use-countries";
 
 export const Route = createFileRoute("/success-stories/")({
   // Loading in the loader rather than useQuery, so the grid renders in the initial
@@ -36,6 +38,7 @@ export const Route = createFileRoute("/success-stories/")({
 
 function SuccessStoriesIndex() {
   const stories = Route.useLoaderData();
+  const headlineStats = useStats();
 
   const [country, setCountry] = useState("All");
 
@@ -51,16 +54,17 @@ function SuccessStoriesIndex() {
       <PageHero
         eyebrow="Success stories"
         title="Offers, visas and new beginnings."
+        highlight={2}
         intro="Every student below sat in our Bagbazar office with the same questions you have now. These are their universities, their courses and what the process looked like."
       />
 
       {/* Results band */}
       <section className="border-b border-border bg-secondary/50">
         <dl className="mx-auto grid max-w-6xl grid-cols-2 gap-6 px-5 py-10 sm:grid-cols-4">
-          {stats.map((s) => (
+          {headlineStats.map((s) => (
             <div key={s.label} className="text-center sm:text-left">
               <dt className="font-display text-3xl font-bold text-primary md:text-4xl">
-                {s.value}
+                <Counter to={s.to} suffix={s.suffix} />
               </dt>
               <dd className="mt-1 text-xs text-muted-foreground">{s.label}</dd>
             </div>
@@ -69,11 +73,13 @@ function SuccessStoriesIndex() {
       </section>
 
       <section className="mx-auto max-w-6xl px-5 py-14 md:py-20">
-        <SectionHeading
-          eyebrow="Filter by destination"
-          title="Where our students are studying now"
-          intro="Pick a country to see the students we have placed there, and the universities that accepted them."
-        />
+        <Reveal>
+          <SectionHeading
+            eyebrow="Filter by destination"
+            title="Where our students are studying now"
+            intro="Pick a country to see the students we have placed there, and the universities that accepted them."
+          />
+        </Reveal>
 
         <div className="mt-8">
           <FilterPills
@@ -111,12 +117,14 @@ function SuccessStoriesIndex() {
         </div>
 
         <div className="mt-16">
-          <CtaBand
-            variant="panel"
-            title="Your story could be the next one here"
-            intro="Start with a free profile assessment. We will tell you which countries and universities are realistic for your academics and your budget."
-            primary={{ to: "/contact", label: "Book free counselling" }}
-          />
+          <Reveal>
+            <CtaBand
+              variant="panel"
+              title="Your story could be the next one here"
+              intro="Start with a free profile assessment. We will tell you which countries and universities are realistic for your academics and your budget."
+              primary={{ to: "/contact", label: "Book free counselling" }}
+            />
+          </Reveal>
         </div>
       </section>
     </SiteLayout>

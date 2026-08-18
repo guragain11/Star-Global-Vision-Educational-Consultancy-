@@ -16,6 +16,7 @@ import {
 import { useEffect, useState } from "react";
 
 import { CtaBand, PageHero, SectionHeading, SiteLayout } from "@/components/site/Chrome";
+import { Counter } from "@/components/site/Counter";
 import { FaqList } from "@/components/site/Faq";
 import { Reveal } from "@/components/site/Reveal";
 import { chooser, exams, method, testFaqs, type Exam } from "@/data/exams";
@@ -94,18 +95,21 @@ function TestPrep() {
       <PageHero
         eyebrow="Test preparation"
         title="Know the exam before you sit it."
+        highlight={4}
         intro="IELTS, PTE Academic, the Duolingo English Test and JLPT Japanese, taught in our Bagbazar office, in batches of twelve, by teachers who sit beside the counsellors handling your application. Below is exactly what each exam asks of you."
       >
         <dl className="mt-10 grid max-w-2xl grid-cols-2 gap-x-6 gap-y-6 sm:grid-cols-4">
+          {/* `to: null` on the two that are words rather than numbers, so the
+              counter is skipped there instead of trying to animate "Weekly". */}
           {[
-            { value: "4", label: "Exams taught in-house" },
-            { value: "12", label: "Students per batch" },
-            { value: "Weekly", label: "Full-length mocks" },
-            { value: "Free", label: "Repeat until target" },
+            { to: exams.length, text: "", label: "Exams taught in-house" },
+            { to: 12, text: "", label: "Students per batch" },
+            { to: null as number | null, text: "Weekly", label: "Full-length mocks" },
+            { to: null as number | null, text: "Free", label: "Repeat until target" },
           ].map((s) => (
             <div key={s.label}>
               <dt className="font-display text-2xl font-bold text-ink-foreground md:text-3xl">
-                {s.value}
+                {s.to === null ? s.text : <Counter to={s.to} />}
               </dt>
               <dd className="mt-1 text-xs text-ink-foreground/60">{s.label}</dd>
             </div>
@@ -114,7 +118,7 @@ function TestPrep() {
       </PageHero>
 
       {/* Sticky exam nav */}
-      <div className="sticky top-18 z-30 border-b border-border bg-background/85 backdrop-blur-xl">
+      <div className="glass sticky top-18 z-30 border-b border-border">
         <div className="mx-auto max-w-6xl px-5">
           <div className="flex items-center gap-4 py-3">
             <span className="hidden shrink-0 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground xl:block">

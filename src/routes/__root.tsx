@@ -12,6 +12,9 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { defaultOgImage } from "../lib/seo";
+import { fetchCountries } from "../lib/content-api";
+import { usePointerEffects } from "../lib/pointer-effects";
+import { themeScript } from "../lib/use-theme";
 import { InquiryPopup } from "../components/site/InquiryPopup";
 
 /** Suggested destinations on the 404 page, to keep a lost visitor inside the site. */
@@ -103,6 +106,14 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
 }
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
+  /*
+    The destination list, loaded here because the header renders it on every page
+    and cannot await. `fetchCountries` never throws — it falls back to seed
+    content — so a database outage degrades the nav instead of breaking every
+    route. See `useCountries` in lib/use-countries.ts for the read side.
+  */
+  loader: async () => ({ countries: await fetchCountries() }),
+
   head: () => ({
     meta: [
       { charSet: "utf-8" },
@@ -111,10 +122,24 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       {
         name: "description",
         content:
-          "Study abroad consultancy in Bagbazar, Kathmandu, covering Australia, USA, Canada, UK, New Zealand, Europe, Japan and test preparation.",
+          "Study abroad consultancy in Bagbazar, Kathmandu, covering Australia, Canada, USA, UK, New Zealand, the Nordics, Japan, South Korea, the UAE and test preparation.",
       },
       { name: "author", content: "Star Global Vision Educational Consultancy" },
-      { name: "theme-color", content: "#0b1f3a" },
+      /*
+        One per colour scheme. A single hardcoded navy meant a dark-mode visitor
+        got a navy browser bar above a near-black page, and a light-mode visitor
+        got navy above white — neither matched what was on screen.
+      */
+      {
+        name: "theme-color",
+        content: "#fbfcfe",
+        media: "(prefers-color-scheme: light)",
+      },
+      {
+        name: "theme-color",
+        content: "#101a2c",
+        media: "(prefers-color-scheme: dark)",
+      },
       { property: "og:site_name", content: "Star Global Vision" },
       { property: "og:type", content: "website" },
       { property: "og:image", content: defaultOgImage },
@@ -151,8 +176,20 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    /*
+      suppressHydrationWarning: the inline theme script below adds `class="dark"`
+      and a `color-scheme` style to this element before React hydrates, which is
+      the entire point of it running early. React must not treat that as a
+      mismatch and strip it.
+    */
+    <html lang="en" suppressHydrationWarning>
       <head>
+        {/*
+          Before anything paints. A dark-mode visitor would otherwise get a full
+          white flash on every page load, because React only applies the class
+          after hydration — several hundred milliseconds too late.
+        */}
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
         <HeadContent />
         {/*
           Scroll-reveal elements ship hidden and are un-hidden by JS. If scripts
@@ -161,7 +198,7 @@ function RootShell({ children }: { children: ReactNode }) {
         */}
         <noscript>
           <style>
-            {`[data-reveal],[data-reveal]>*{opacity:1!important;transform:none!important}`}
+            {`[data-reveal],[data-reveal]>*{opacity:1!important;transform:none!important;filter:none!important}`}
           </style>
         </noscript>
       </head>
@@ -175,6 +212,10 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+
+  // One delegated pointer listener for the whole site, feeding the `spotlight`
+  // and `tilt` utilities. Absent entirely on touch and under reduced-motion.
+  usePointerEffects();
 
   return (
     <QueryClientProvider client={queryClient}>

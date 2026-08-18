@@ -3,6 +3,7 @@ import { ArrowLeft, CalendarDays, Clock, User } from "lucide-react";
 
 import { CtaBand, SiteLayout } from "@/components/site/Chrome";
 import { BlogCard, CategoryChip } from "@/components/site/ContentCards";
+import { Reveal } from "@/components/site/Reveal";
 import { RichText } from "@/components/site/RichText";
 import { site } from "@/data/site";
 import { fetchBlogPost, fetchBlogPosts } from "@/lib/content-api";
@@ -105,13 +106,18 @@ function BlogDetail() {
   return (
     <SiteLayout>
       <article>
-        <header className="surface-brand relative overflow-hidden">
+        {/* `aurora` for the same brand gradient the other heroes carry, plus its
+            two drifting mesh blobs. It sets no `color`, so ink foreground is
+            spelled out alongside it, and the grain stops the oklch ramp banding
+            on an 8-bit panel. */}
+        <header className="aurora relative overflow-hidden text-ink-foreground">
+          <span aria-hidden="true" className="noise absolute inset-0" />
           <div className="relative mx-auto max-w-3xl px-5 py-16 md:py-20">
             <Link
               to="/blog"
-              className="group inline-flex items-center gap-2 text-sm font-medium text-ink-foreground/70 transition-colors hover:text-ink-foreground"
+              className="group inline-flex items-center gap-2 text-sm font-medium text-ink-foreground/70 transition-colors duration-200 hover:text-ink-foreground"
             >
-              <ArrowLeft className="size-4 transition-transform duration-300 group-hover:-translate-x-0.5" />
+              <ArrowLeft className="size-4 transition-transform duration-300 ease-brand group-hover:-translate-x-0.5" />
               All articles
             </Link>
 
@@ -119,7 +125,7 @@ function BlogDetail() {
               <CategoryChip category={post.category} />
             </div>
 
-            <h1 className="mt-5 font-display text-3xl font-bold leading-[1.12] text-ink-foreground md:text-5xl">
+            <h1 className="mt-5 text-balance font-display text-display-md font-bold text-ink-foreground">
               {post.title}
             </h1>
 
@@ -164,28 +170,30 @@ function BlogDetail() {
             A quiet ask at the end of an article: a gradient panel here competes
             with the writing above it, which is the thing that earned the ask.
           */}
-          <aside className="mt-14">
+          <Reveal as="aside" className="mt-14">
             <CtaBand
               variant="quiet"
               title="Questions about your own application?"
               intro="Bring your documents to our Bagbazar office and a counsellor will map out your country, course and budget, free of cost."
               primary={{ to: "/contact", label: "Book free counselling" }}
             />
-          </aside>
+          </Reveal>
         </div>
       </article>
 
       {related.length > 0 && (
         <section className="border-t border-border bg-secondary/50 py-16 md:py-20">
           <div className="mx-auto max-w-6xl px-5">
-            <h2 className="font-display text-2xl font-bold md:text-3xl">
-              More from our counselling desk
-            </h2>
-            <div className="mt-8 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            <Reveal>
+              <h2 className="font-display text-2xl font-bold md:text-3xl">
+                More from our counselling desk
+              </h2>
+            </Reveal>
+            <Reveal stagger className="mt-8 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {related.map((item) => (
                 <BlogCard key={item.id} post={item} />
               ))}
-            </div>
+            </Reveal>
           </div>
         </section>
       )}

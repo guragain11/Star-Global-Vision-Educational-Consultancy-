@@ -18,146 +18,6 @@ export const site = {
 /** Digits-only phone number, safe for tel: hrefs. */
 export const telHref = (phone: string) => `tel:${phone.replace(/[^0-9]/g, "")}`;
 
-export type Country = {
-  slug: string;
-  name: string;
-  flag: string;
-  tier: "primary" | "secondary";
-  blurb: string;
-  intakes: string;
-  work: string;
-  highlights: string[];
-  tests: string;
-  /**
-   * Destination photo served from public/. The filenames are the ones supplied
-   * with the brand assets, so they are spelled exactly as they sit on disk.
-   * The space in "New Zealand.jpg" is percent-encoded for the URL.
-   */
-  image: string;
-};
-
-export const countries: Country[] = [
-  {
-    slug: "australia",
-    name: "Australia",
-    flag: "AU",
-    tier: "primary",
-    blurb:
-      "Globally ranked universities, generous post-study work rights and a strong Nepali student community across Sydney, Melbourne and Brisbane.",
-    intakes: "February, July (limited November)",
-    work: "48 hrs / fortnight during study, 2-4 yrs post-study work",
-    highlights: [
-      "Group of Eight & top TAFE pathways",
-      "Dependent visa options",
-      "Strong part-time job market",
-    ],
-    tests: "IELTS / PTE / Duolingo",
-    image: "/Australia.jpg",
-  },
-  {
-    slug: "usa",
-    name: "U.S.A",
-    flag: "US",
-    tier: "primary",
-    blurb:
-      "The widest choice of universities in the world, scholarship-rich admissions and OPT/STEM-OPT work experience after graduation.",
-    intakes: "Fall, Spring, Summer",
-    work: "On-campus work, 12 months OPT + 24 months STEM extension",
-    highlights: [
-      "F-1 visa interview coaching",
-      "Scholarship & assistantship guidance",
-      "Community college pathways",
-    ],
-    tests: "IELTS / PTE / Duolingo / SAT / GRE",
-    image: "/Usa.avif",
-  },
-  {
-    slug: "canada",
-    name: "Canada",
-    flag: "CA",
-    tier: "primary",
-    blurb:
-      "Affordable, safe and residency-friendly. Colleges and universities with co-op programs that lead to a Post-Graduation Work Permit.",
-    intakes: "January, May, September",
-    work: "24 hrs / week off-campus, up to 3 yrs PGWP",
-    highlights: [
-      "SDS & non-SDS applications",
-      "GIC and proof-of-funds support",
-      "Co-op / internship programs",
-    ],
-    tests: "IELTS / PTE / Duolingo",
-    image: "/Canada.jpg",
-  },
-  {
-    slug: "uk",
-    name: "U.K",
-    flag: "UK",
-    tier: "primary",
-    blurb:
-      "One-year master's degrees, world-heritage universities and a 2-year Graduate Route visa to build your career in Britain.",
-    intakes: "September, January",
-    work: "20 hrs / week during term, 2 yrs Graduate Route",
-    highlights: [
-      "1-year master's programs",
-      "Russell Group applications",
-      "Scholarship & bursary shortlisting",
-    ],
-    tests: "IELTS UKVI / PTE UKVI",
-    image: "/uk.avif",
-  },
-  {
-    slug: "new-zealand",
-    name: "New Zealand",
-    flag: "NZ",
-    tier: "secondary",
-    blurb:
-      "Small class sizes, high quality of life and clear pathways from diploma to skilled work visas.",
-    intakes: "February, July",
-    work: "20 hrs / week, up to 3 yrs post-study work",
-    highlights: [
-      "All 8 universities government-funded",
-      "Partner work rights",
-      "Balanced cost of living",
-    ],
-    tests: "IELTS / PTE",
-    image: "/New%20Zealand.jpg",
-  },
-  {
-    slug: "europe",
-    name: "Europe",
-    flag: "EU",
-    tier: "secondary",
-    blurb:
-      "Low-tuition and English-taught degrees across Germany, France, Poland, Malta and the Baltics with Schengen mobility.",
-    intakes: "Winter & Summer semesters",
-    work: "20 hrs / week (varies by country), 9-18 months job-seeker visa",
-    highlights: [
-      "Low or no tuition options",
-      "Blocked account & finance guidance",
-      "Schengen travel access",
-    ],
-    tests: "IELTS / PTE / Duolingo",
-    image: "/Europe.jpg",
-  },
-  {
-    slug: "japan",
-    name: "Japan",
-    flag: "JP",
-    tier: "secondary",
-    blurb:
-      "Language school to university and vocational pathways, with part-time work and one of Asia's strongest job markets.",
-    intakes: "April, July, October, January",
-    work: "28 hrs / week with permission",
-    highlights: [
-      "JLPT N5-N3 preparation in-house",
-      "Language school placement",
-      "Student dormitory support",
-    ],
-    tests: "JLPT / NAT-TEST",
-    image: "/Japan.jpg",
-  },
-];
-
 export const tests = [
   {
     name: "IELTS",
@@ -255,13 +115,18 @@ export const testimonials = [
   },
 ];
 
-export const stats = [
-  { value: "3,500+", label: "Students counselled" },
-  { value: "98%", label: "Visa success rate" },
-  // Kept in step with the `countries` array above: seven entries, seven here.
-  { value: "7", label: "Study destinations" },
-  { value: "12+", label: "Years of guidance" },
-];
+/**
+ * Headline figures, in the numeric shape the `Counter` component animates.
+ *
+ * Keyed rather than a list, and deliberately missing the destination count: that
+ * figure is derived from the live country list by `useStats()`, because as a
+ * hardcoded "14" it went stale the moment anyone added a destination in /admin.
+ */
+export const stats = {
+  counselled: { to: 3500, suffix: "+", label: "Students counselled" },
+  visa: { to: 98, suffix: "%", label: "Visa success rate" },
+  years: { to: 12, suffix: "+", label: "Years of guidance" },
+} as const;
 
 /** Step-by-step process shown on the home page and About page. */
 export const processSteps = [

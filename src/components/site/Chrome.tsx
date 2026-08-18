@@ -1,19 +1,28 @@
-import { Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { Link, useLocation } from "@tanstack/react-router";
+import { useEffect, useRef, useState } from "react";
 import {
+  ArrowRight,
   ArrowUp,
   BadgeCheck,
+  ChevronDown,
   Clock,
   Facebook,
   Mail,
   MapPin,
   Menu,
   MessageCircle,
+  Moon,
   Phone,
+  Sun,
   X,
 } from "lucide-react";
 
 import { site, telHref } from "@/data/site";
+import { magneticProps } from "@/lib/pointer-effects";
+import { useCountries } from "@/lib/use-countries";
+import { useTheme } from "@/lib/use-theme";
+
+import { SplitWords } from "./SplitWords";
 
 /** Served straight from `public/`, no bundler import needed. */
 const logo = "/logo.png";
@@ -105,6 +114,224 @@ function TopBar() {
   );
 }
 
+/* -------------------------------------------------------------------------- */
+/* Destinations menu                                                          */
+/* -------------------------------------------------------------------------- */
+
+/** Shared row treatment for a country inside either menu. */
+const countryRowClass =
+  "press flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-foreground";
+
+function FlagChip({ code }: { code: string }) {
+  return (
+    <span className="surface-sun inline-flex size-7 shrink-0 items-center justify-center rounded-lg font-display text-[0.6rem] font-bold tracking-wider">
+      {code}
+    </span>
+  );
+}
+
+/**
+ * "Destinations" in the desktop header opens onto every country rather than only
+ * linking to the guide, so a visitor who already knows where they want to go
+ * reaches that country's page in one move.
+ *
+ * The trigger stays a link to /countries rather than becoming a toggle button.
+ * A toggle fights the hover: the pointer opens the panel on the way in, so the
+ * click that follows would close what the user was reaching for. Leaving it a
+ * link means clicking does the one thing the label promises, and the panel is
+ * driven by hover and focus instead. Focus opening it is what keeps the menu
+ * reachable by keyboard without a second control to tab through.
+ *
+ * A disclosure, not a menubar: the panel holds plain links, so `aria-expanded`
+ * describes it honestly where `role="menu"` would promise arrow-key semantics
+ * this does not implement.
+ */
+function DestinationsMenu() {
+  const [open, setOpen] = useState(false);
+  const wrap = useRef<HTMLDivElement>(null);
+  const { pathname } = useLocation();
+  const countries = useCountries();
+  const onGuide = pathname.startsWith("/countries");
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (!wrap.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div
+      ref={wrap}
+      className="relative"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+      onFocus={() => setOpen(true)}
+      /* Tabbing past the last link should close the panel behind you, rather
+         than leaving it hanging open over the page. */
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOpen(false);
+      }}
+    >
+      <Link
+        to="/countries"
+        aria-expanded={open}
+        aria-controls="destinations-menu"
+        onClick={() => setOpen(false)}
+        className={`press inline-flex items-center gap-1 rounded-full px-3.5 py-2 text-sm font-medium ${
+          onGuide
+            ? "bg-primary-soft text-primary"
+            : "text-muted-foreground hover:bg-secondary hover:text-secondary-foreground"
+        }`}
+      >
+        Destinations
+        <ChevronDown
+          aria-hidden="true"
+          className={`size-3.5 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+        />
+      </Link>
+
+      {open && (
+        <div
+          id="destinations-menu"
+          className="animate-in fade-in slide-in-from-top-1 glass absolute left-0 top-full z-50 w-120 rounded-2xl border border-border p-3 shadow-float duration-150"
+        >
+          {/* Two columns: fourteen countries in one column would run past the
+              fold on a laptop. */}
+          <ul className="grid grid-cols-2 gap-0.5">
+            {countries.map((c) => (
+              <li key={c.slug}>
+                <Link
+                  to="/countries/$slug"
+                  params={{ slug: c.slug }}
+                  onClick={() => setOpen(false)}
+                  className={countryRowClass}
+                >
+                  <FlagChip code={c.flag} />
+                  <span className="truncate">{c.name}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+          <Link
+            to="/countries"
+            onClick={() => setOpen(false)}
+            className="mt-2 flex items-center justify-between gap-2 border-t border-border px-3 pt-3 text-sm font-semibold text-primary hover:text-primary/80"
+          >
+            Compare all {countries.length} destinations
+            <ArrowRight className="size-4" />
+          </Link>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** The same countries, collapsed by default inside the mobile menu. */
+function MobileDestinations({ onNavigate }: { onNavigate: () => void }) {
+  const [expanded, setExpanded] = useState(false);
+  const countries = useCountries();
+
+  return (
+    <div>
+      <button
+        type="button"
+        aria-expanded={expanded}
+        onClick={() => setExpanded((v) => !v)}
+        className="press flex w-full items-center justify-between rounded-xl px-4 py-3 text-sm font-medium text-foreground hover:bg-secondary"
+      >
+        Destinations
+        <ChevronDown
+          aria-hidden="true"
+          className={`size-4 text-muted-foreground transition-transform duration-200 ${
+            expanded ? "rotate-180" : ""
+          }`}
+        />
+      </button>
+
+      {expanded && (
+        <ul className="animate-in fade-in slide-in-from-top-1 my-1 ml-4 grid gap-0.5 border-l border-border pl-2 duration-150">
+          <li>
+            <Link
+              to="/countries"
+              onClick={onNavigate}
+              className="press flex rounded-xl px-3 py-2 text-sm font-semibold text-primary hover:bg-secondary"
+            >
+              All {countries.length} destinations
+            </Link>
+          </li>
+          {countries.map((c) => (
+            <li key={c.slug}>
+              <Link
+                to="/countries/$slug"
+                params={{ slug: c.slug }}
+                onClick={onNavigate}
+                className={countryRowClass}
+              >
+                <FlagChip code={c.flag} />
+                {c.name}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Theme toggle                                                               */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Light/dark switch for the header.
+ *
+ * Both icons are rendered and cross-faded rather than swapped conditionally: a
+ * conditional render would pop, and it would also make the button's width jump
+ * for one frame while the new glyph's font metrics settle. Stacking them in a
+ * fixed-size box means the control never moves.
+ *
+ * `aria-pressed` rather than a switch role, because this is a two-state button
+ * and the label already says which state pressing it produces.
+ */
+function ThemeToggle({ className = "" }: { className?: string }) {
+  const { theme, toggle } = useTheme();
+  const dark = theme === "dark";
+
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      aria-pressed={dark}
+      aria-label={dark ? "Switch to light theme" : "Switch to dark theme"}
+      title={dark ? "Light mode" : "Dark mode"}
+      className={`press relative grid size-10 place-items-center overflow-hidden rounded-full border border-border text-muted-foreground hover:border-primary/40 hover:text-primary ${className}`}
+    >
+      <Sun
+        aria-hidden="true"
+        className={`absolute size-4.5 transition-all duration-300 ease-brand ${
+          dark ? "rotate-90 scale-50 opacity-0" : "rotate-0 scale-100 opacity-100"
+        }`}
+      />
+      <Moon
+        aria-hidden="true"
+        className={`absolute size-4.5 transition-all duration-300 ease-brand ${
+          dark ? "rotate-0 scale-100 opacity-100" : "-rotate-90 scale-50 opacity-0"
+        }`}
+      />
+    </button>
+  );
+}
+
 export function Header() {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -150,38 +377,43 @@ export function Header() {
       <TopBar />
       <div
         className={`border-b transition-shadow duration-300 ${
-          scrolled
-            ? "border-border/70 bg-background/90 shadow-soft backdrop-blur-xl"
-            : "border-transparent bg-background"
+          scrolled ? "glass border-border/70 shadow-soft" : "border-transparent bg-background"
         }`}
       >
         <div className="mx-auto flex h-18 max-w-6xl items-center justify-between gap-4 px-5">
           <Logo />
 
           <nav className="hidden items-center gap-0.5 lg:flex" aria-label="Main">
-            {nav.map((item) => (
-              <Link
-                key={item.to}
-                to={item.to}
-                activeOptions={{ exact: item.to === "/" }}
-                activeProps={{ className: "bg-primary-soft text-primary" }}
-                className="press rounded-full px-3.5 py-2 text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-secondary-foreground"
-              >
-                {item.label}
-              </Link>
-            ))}
+            {nav.map((item) =>
+              item.to === "/countries" ? (
+                <DestinationsMenu key={item.to} />
+              ) : (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  activeOptions={{ exact: item.to === "/" }}
+                  activeProps={{ className: "bg-primary-soft text-primary" }}
+                  className="press rounded-full px-3.5 py-2 text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-secondary-foreground"
+                >
+                  {item.label}
+                </Link>
+              ),
+            )}
           </nav>
 
           <div className="hidden items-center gap-3 lg:flex">
+            <ThemeToggle />
             <Link
               to="/contact"
-              className="surface-sun press rounded-full px-5 py-2.5 text-sm font-bold shadow-soft hover:-translate-y-0.5 hover:shadow-lift"
+              {...magneticProps(5)}
+              className="surface-sun magnetic press rounded-full px-5 py-2.5 text-sm font-bold shadow-soft hover:shadow-lift"
             >
               Free counselling
             </Link>
           </div>
 
           <div className="flex items-center gap-2 lg:hidden">
+            <ThemeToggle className="size-11" />
             <a
               href={telHref(site.phones[1])}
               aria-label={`Call ${site.phones[1]}`}
@@ -216,18 +448,22 @@ export function Header() {
       {open && (
         <div className="animate-in slide-in-from-top-2 fade-in max-h-[calc(100vh-4.5rem)] overflow-y-auto border-b border-border bg-background px-5 py-4 shadow-float duration-200 lg:hidden">
           <nav className="flex flex-col gap-1" aria-label="Mobile">
-            {nav.map((item) => (
-              <Link
-                key={item.to}
-                to={item.to}
-                onClick={() => setOpen(false)}
-                activeOptions={{ exact: item.to === "/" }}
-                activeProps={{ className: "bg-primary-soft text-primary" }}
-                className="press rounded-xl px-4 py-3 text-sm font-medium text-foreground hover:bg-secondary"
-              >
-                {item.label}
-              </Link>
-            ))}
+            {nav.map((item) =>
+              item.to === "/countries" ? (
+                <MobileDestinations key={item.to} onNavigate={() => setOpen(false)} />
+              ) : (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  onClick={() => setOpen(false)}
+                  activeOptions={{ exact: item.to === "/" }}
+                  activeProps={{ className: "bg-primary-soft text-primary" }}
+                  className="press rounded-xl px-4 py-3 text-sm font-medium text-foreground hover:bg-secondary"
+                >
+                  {item.label}
+                </Link>
+              ),
+            )}
             <Link
               to="/contact"
               onClick={() => setOpen(false)}
@@ -427,16 +663,26 @@ export function PageHero({
   eyebrow,
   title,
   intro,
+  highlight = 0,
   children,
 }: {
   /** Optional: only worth setting where it names a real category. */
   eyebrow?: string;
   title: string;
   intro: string;
+  /**
+   * Trailing words of the title to paint with the sun gradient. Off by default:
+   * a gradient landing on "that fits you" reads as an accident, so each page
+   * opts in with a count that ends on a phrase worth emphasising.
+   */
+  highlight?: number;
   children?: React.ReactNode;
 }) {
   return (
-    <section className="surface-brand grid-glow relative overflow-hidden">
+    /* `aurora` replaces `surface-brand grid-glow` here: it paints the same brand
+       gradient plus two drifting mesh blobs. It carries no `color`, so the ink
+       foreground is set alongside it. */
+    <section className="aurora relative overflow-hidden text-ink-foreground">
       {/*
         The one decorative light on the site. It lives here and in the home hero
         only — it used to be pasted into twelve places, at which point it stopped
@@ -446,20 +692,21 @@ export function PageHero({
         aria-hidden="true"
         className="float-drift pointer-events-none absolute -right-24 -top-32 size-96 rounded-full bg-accent/16 blur-3xl"
       />
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute -bottom-40 left-1/4 size-80 rounded-full bg-primary/25 blur-3xl"
-      />
+      {/* Grain over the gradient. Without it the oklch ramp bands on an 8-bit panel. */}
+      <span aria-hidden="true" className="noise absolute inset-0" />
 
       <div className="relative mx-auto max-w-6xl px-5 py-16 md:py-24">
         {eyebrow && <p className="eyebrow">{eyebrow}</p>}
-        <h1
-          className={`max-w-3xl font-display text-4xl font-bold leading-[1.05] text-ink-foreground md:text-6xl ${
+        {/* Fluid display size rather than a 4xl→6xl breakpoint jump, revealed a
+            word at a time. */}
+        <SplitWords
+          as="h1"
+          text={title}
+          highlightWords={highlight}
+          className={`max-w-3xl text-balance font-display text-display-lg font-bold ${
             eyebrow ? "mt-4" : ""
           }`}
-        >
-          {title}
-        </h1>
+        />
         <p className="mt-6 max-w-2xl text-base leading-relaxed text-ink-foreground/75 md:text-lg">
           {intro}
         </p>

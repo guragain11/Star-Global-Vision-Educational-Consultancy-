@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import {
   ArrowRight,
+  Briefcase,
   CalendarDays,
   Clock,
   GraduationCap,
@@ -10,7 +11,7 @@ import {
 } from "lucide-react";
 import type { CSSProperties } from "react";
 
-import type { BlogPost, SuccessStory } from "@/data/content";
+import type { BlogPost, Country, SuccessStory } from "@/data/content";
 import { formatDate, initials, readingTime } from "@/lib/content-utils";
 
 /** Category chip. Sits over the cover photo, so it carries its own contrast. */
@@ -51,8 +52,12 @@ function hashString(input: string): number {
  * Branded placeholder shown whenever a record has no image. The monogram is
  * oversized and cropped deliberately: it reads as a designed cover rather than
  * a missing-image box.
+ *
+ * Exported because the destinations on /countries lean on it too: only six of
+ * the fourteen came with a photo, and one stock European scene repeated eight
+ * times reads as a bug where a per-country panel reads as a decision.
  */
-function CoverFallback({
+export function CoverFallback({
   label,
   seed,
   className = "",
@@ -98,7 +103,7 @@ function MediaScrim() {
   return (
     <span
       aria-hidden="true"
-      className="absolute inset-0 bg-gradient-to-t from-ink/85 via-ink/25 to-transparent"
+      className="absolute inset-0 bg-linear-to-t from-ink/85 via-ink/25 to-transparent"
     />
   );
 }
@@ -110,7 +115,7 @@ export function BlogCard({ post, featured = false }: { post: BlogPost; featured?
     /* `relative` anchors the stretched title link below. Without it the
        after:inset-0 overlay would size to the nearest positioned ancestor. */
     <article
-      className={`card-lift group relative flex flex-col overflow-hidden rounded-3xl border border-border bg-card shadow-soft ${
+      className={`card-lift spotlight group relative flex flex-col overflow-hidden rounded-3xl border border-border bg-card shadow-soft ${
         featured ? "md:flex-row" : ""
       }`}
     >
@@ -123,7 +128,7 @@ export function BlogCard({ post, featured = false }: { post: BlogPost; featured?
             src={post.cover_image}
             alt={post.title}
             loading="lazy"
-            className={`w-full object-cover transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.06] ${media}`}
+            className={`w-full object-cover transition-transform duration-700 ease-brand group-hover:scale-[1.06] ${media}`}
           />
         ) : (
           <CoverFallback
@@ -186,14 +191,14 @@ export function BlogCard({ post, featured = false }: { post: BlogPost; featured?
 
 export function StoryCard({ story }: { story: SuccessStory }) {
   return (
-    <article className="card-lift group relative flex flex-col overflow-hidden rounded-3xl border border-border bg-card shadow-soft">
+    <article className="card-lift spotlight group relative flex flex-col overflow-hidden rounded-3xl border border-border bg-card shadow-soft">
       <div className="sheen relative aspect-[4/3] overflow-hidden">
         {story.photo ? (
           <img
             src={story.photo}
             alt={story.student_name}
             loading="lazy"
-            className="size-full object-cover object-top transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.06]"
+            className="size-full object-cover object-top transition-transform duration-700 ease-brand group-hover:scale-[1.06]"
           />
         ) : (
           <CoverFallback
@@ -254,6 +259,93 @@ export function StoryCard({ story }: { story: SuccessStory }) {
             <ArrowRight className="size-4 transition-transform duration-300 group-hover:translate-x-1" />
           </Link>
         </div>
+      </div>
+    </article>
+  );
+}
+
+/**
+ * A destination on the /countries grid.
+ *
+ * The whole card is one target via the stretched link on the heading, so the
+ * hover treatment can live on the article and everything inside it — the photo
+ * zoom, the arrow, the glow — moves together as one object.
+ */
+export function CountryCard({ country: c, index }: { country: Country; index?: number }) {
+  const facts = [
+    { icon: CalendarDays, label: "Intakes", value: c.intakes },
+    { icon: Briefcase, label: "Work", value: c.work },
+  ];
+
+  return (
+    <article className="card-lift spotlight group relative flex flex-col overflow-hidden rounded-3xl border border-border bg-card shadow-soft">
+      <div className="sheen relative h-44 shrink-0 overflow-hidden" aria-hidden="true">
+        {c.image ? (
+          <img
+            src={c.image}
+            alt=""
+            loading={index !== undefined && index < 3 ? "eager" : "lazy"}
+            className="size-full object-cover transition-transform duration-700 ease-brand group-hover:scale-[1.06]"
+          />
+        ) : (
+          <CoverFallback label={c.flag} seed={c.slug} className="size-full" />
+        )}
+
+        <MediaScrim />
+
+        {/* The fallback already sets the code as an oversized monogram, so the
+            chip would only repeat itself there. */}
+        {c.image && (
+          <span className="surface-sun absolute left-4 top-4 z-1 inline-flex size-10 items-center justify-center rounded-xl font-display text-xs font-bold tracking-wider shadow-lift">
+            {c.flag}
+          </span>
+        )}
+
+        {c.tier === "primary" && (
+          <span className="absolute right-4 top-4 z-1 rounded-full bg-background/92 px-3 py-1.5 text-[0.65rem] font-bold uppercase tracking-wider text-primary shadow-soft backdrop-blur-sm">
+            Top destination
+          </span>
+        )}
+
+        <div className="absolute inset-x-0 bottom-0 z-1 p-5">
+          <p className="font-display text-2xl font-bold leading-tight text-ink-foreground drop-shadow-sm">
+            {c.name}
+          </p>
+        </div>
+      </div>
+
+      <div className="flex flex-1 flex-col p-6">
+        {/* Visually the name sits on the photo above; the heading here is the
+            real one for assistive tech. It is plain text, not the link: the
+            stretched overlay has to come from an element outside the media box
+            and outside sr-only, both of which clip it. */}
+        <h3 className="sr-only">Study in {c.name}</h3>
+
+        <p className="line-clamp-3 text-sm leading-relaxed text-muted-foreground">{c.blurb}</p>
+
+        <dl className="mt-5 grid gap-3 border-t border-border pt-4">
+          {facts.map((f) => (
+            <div key={f.label} className="grid gap-0.5">
+              <dt className="inline-flex items-center gap-1.5 text-[0.68rem] font-semibold uppercase tracking-wider text-muted-foreground">
+                <f.icon className="size-3.5 text-accent" />
+                {f.label}
+              </dt>
+              <dd className="line-clamp-1 text-sm font-medium">{f.value}</dd>
+            </div>
+          ))}
+        </dl>
+
+        {/* Stretched from here, matching StoryCard: this sits outside the media
+            box, so the overlay covers the whole card. */}
+        <Link
+          to="/countries/$slug"
+          params={{ slug: c.slug }}
+          aria-label={`Full guide to studying in ${c.name}`}
+          className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-primary after:absolute after:inset-0"
+        >
+          Full guide
+          <ArrowRight className="size-4 transition-transform duration-300 group-hover:translate-x-1" />
+        </Link>
       </div>
     </article>
   );

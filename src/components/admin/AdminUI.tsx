@@ -171,7 +171,7 @@ export function ImageField({
   label: string;
   value: string | null;
   onChange: (value: string | null) => void;
-  folder: "blog" | "stories" | "team";
+  folder: "blog" | "stories" | "team" | "countries";
   hint?: string;
   aspect?: "video" | "square";
 }) {

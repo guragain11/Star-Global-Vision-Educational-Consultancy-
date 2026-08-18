@@ -39,6 +39,69 @@ export function initials(name: string): string {
     .join("");
 }
 
+const numberWords = [
+  "zero",
+  "one",
+  "two",
+  "three",
+  "four",
+  "five",
+  "six",
+  "seven",
+  "eight",
+  "nine",
+  "ten",
+  "eleven",
+  "twelve",
+  "thirteen",
+  "fourteen",
+  "fifteen",
+  "sixteen",
+  "seventeen",
+  "eighteen",
+  "nineteen",
+  "twenty",
+] as const;
+
+/**
+ * 14 -> "fourteen", falling back to digits above twenty.
+ *
+ * Headline copy like "fourteen destinations" has to track a count that staff can
+ * now change from /admin, and spelled-out numbers read better in a sentence than
+ * a numeral dropped mid-phrase.
+ */
+export function numberWord(value: number): string {
+  if (!Number.isInteger(value) || value < 0) return String(value);
+  return numberWords[value] ?? String(value);
+}
+
+/** "fourteen" -> "Fourteen", for a word that has to open a sentence. */
+export function capitalise(value: string): string {
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Postgres text[] columns <-> a textarea                                     */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * One item per line, blank lines dropped. Used by the admin editors for the
+ * `text[]` columns, where a textarea is a plainer control than a repeater and
+ * matches how staff already paste lists in.
+ */
+export function linesToArray(value: string): string[] {
+  return value
+    .replace(/\r\n/g, "\n")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+/** The inverse: an array back into textarea content. */
+export function arrayToLines(value: readonly string[]): string {
+  return value.join("\n");
+}
+
 /* -------------------------------------------------------------------------- */
 /* Minimal markdown-ish renderer                                              */
 /* -------------------------------------------------------------------------- */

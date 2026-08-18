@@ -9,13 +9,23 @@ import {
   TextField,
   ToggleField,
 } from "@/components/admin/AdminUI";
-import { blogCategories, destinationNames, teamDepartments, type BlogPost, type SuccessStory, type TeamMember } from "@/data/content";
-import { slugify, todayIso } from "@/lib/content-utils";
+import {
+  blogCategories,
+  countryTiers,
+  destinationNames,
+  teamDepartments,
+  type BlogPost,
+  type Country,
+  type SuccessStory,
+  type TeamMember,
+} from "@/data/content";
+import { arrayToLines, linesToArray, slugify, todayIso } from "@/lib/content-utils";
 import { deleteImage } from "@/lib/storage";
 
 type BlogDraft = Omit<BlogPost, "id">;
 type StoryDraft = Omit<SuccessStory, "id">;
 type TeamDraft = Omit<TeamMember, "id">;
+type CountryDraft = Omit<Country, "id">;
 
 function emptyBlogDraft(): BlogDraft {
   return {
@@ -59,6 +69,31 @@ function emptyTeamDraft(): TeamDraft {
     bio: "",
     sort_order: 0,
     published: true,
+  };
+}
+
+function emptyCountryDraft(): CountryDraft {
+  return {
+    slug: "",
+    name: "",
+    flag: "",
+    tier: "secondary",
+    blurb: "",
+    overview: "",
+    highlights: [],
+    intakes: "",
+    work: "",
+    tests: "",
+    tuition: "",
+    cost_living: "",
+    requirements: "",
+    universities: [],
+    image: null,
+    // 99 rather than 0: a brand-new destination lands at the end of the list
+    // instead of jumping to the front of the header menu before anyone has
+    // decided where it belongs.
+    sort_order: 99,
+    published: false,
   };
 }
 
@@ -546,12 +581,7 @@ export function TeamEditor({
       </h2>
 
       <div className="grid gap-5 md:grid-cols-2">
-        <TextField
-          label="Full name"
-          value={draft.name}
-          onChange={(v) => set("name", v)}
-          required
-        />
+        <TextField label="Full name" value={draft.name} onChange={(v) => set("name", v)} required />
         <TextField
           label="Designation"
           value={draft.designation}
@@ -623,8 +653,8 @@ export function TeamEditor({
       {error && <Notice tone="error">{error}</Notice>}
       {confirmDelete && (
         <Notice tone="error">
-          Press <strong>Delete</strong> once more to permanently remove this team member. This cannot
-          be undone.
+          Press <strong>Delete</strong> once more to permanently remove this team member. This
+          cannot be undone.
         </Notice>
       )}
 
@@ -638,4 +668,247 @@ export function TeamEditor({
   );
 }
 
-export type { BlogDraft, StoryDraft, TeamDraft };
+export type { BlogDraft, StoryDraft, TeamDraft, CountryDraft };
+
+/* -------------------------------------------------------------------------- */
+/* Destinations                                                               */
+/* -------------------------------------------------------------------------- */
+
+export function CountryEditor({
+  initial,
+  onSave,
+  onDelete,
+  onCancel,
+}: {
+  initial: Country | null;
+  onSave: (draft: CountryDraft, id?: string) => Promise<void>;
+  onDelete?: (id: string) => Promise<void>;
+  onCancel: () => void;
+}) {
+  const [draft, setDraft] = useState<CountryDraft>(() =>
+    initial ? { ...initial } : emptyCountryDraft(),
+  );
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const set = <K extends keyof CountryDraft>(key: K, value: CountryDraft[K]) =>
+    setDraft((d) => ({ ...d, [key]: value }));
+
+  const previewSlug = draft.slug.trim() ? slugify(draft.slug) : slugify(draft.name);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    const name = draft.name.trim();
+    if (!name) return setError("The destination name is required.");
+
+    const slug = previewSlug;
+    if (!slug) return setError("Could not build a URL slug from that name. Add one manually.");
+
+    const image = draft.image?.trim() ? draft.image.trim() : null;
+
+    setBusy(true);
+    try {
+      await onSave(
+        {
+          ...draft,
+          name,
+          slug,
+          // Uppercased here rather than in the component that draws it, so the
+          // value in the database is the value on the page.
+          flag: draft.flag.trim().toUpperCase().slice(0, 3),
+          blurb: draft.blurb.trim(),
+          intakes: draft.intakes.trim(),
+          work: draft.work.trim(),
+          tests: draft.tests.trim(),
+          tuition: draft.tuition.trim(),
+          cost_living: draft.cost_living.trim(),
+          image,
+        },
+        initial?.id,
+      );
+
+      // Only after the row is safely written, so a failed save never strips the
+      // photo off a destination that is still live.
+      if (initial?.image && initial.image !== image) {
+        await deleteImage(initial.image);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save the destination.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const remove = async () => {
+    if (!initial || !onDelete) return;
+    if (!confirmDelete) return setConfirmDelete(true);
+    setBusy(true);
+    try {
+      await onDelete(initial.id);
+      await deleteImage(initial.image);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not delete the destination.");
+      setBusy(false);
+    }
+  };
+
+  return (
+    <form
+      onSubmit={submit}
+      className="grid gap-5 rounded-3xl border border-border bg-card p-6 shadow-soft md:p-8"
+    >
+      <h2 className="font-display text-xl font-bold">
+        {initial ? `Edit ${initial.name}` : "Add a destination"}
+      </h2>
+
+      <div className="grid gap-5 md:grid-cols-[1.4fr_0.7fr_1fr]">
+        <TextField
+          label="Country name"
+          value={draft.name}
+          onChange={(v) => set("name", v)}
+          placeholder="Australia"
+          required
+        />
+        <TextField
+          label="Flag code"
+          value={draft.flag}
+          onChange={(v) => set("flag", v)}
+          placeholder="AU"
+          hint="Two letters. Shown in the nav chip."
+        />
+        <TextField
+          label="URL slug"
+          value={draft.slug}
+          onChange={(v) => set("slug", v)}
+          placeholder="auto-generated from the name"
+          hint={`/countries/${previewSlug || "…"}`}
+        />
+      </div>
+
+      <div className="grid gap-5 md:grid-cols-2">
+        <SelectField
+          label="Tier"
+          value={draft.tier}
+          onChange={(v) => set("tier", v as Country["tier"])}
+          options={countryTiers}
+        />
+        <TextField
+          label="Sort order"
+          type="number"
+          value={String(draft.sort_order)}
+          onChange={(v) => set("sort_order", parseInt(v, 10) || 0)}
+          hint="Lower numbers appear first, in the nav and on the grid."
+        />
+      </div>
+
+      <TextArea
+        label="Short blurb"
+        value={draft.blurb}
+        onChange={(v) => set("blurb", v)}
+        rows={3}
+        hint="One or two sentences. Shown on the card, in the comparison table and as the page description for search engines."
+      />
+
+      <TextArea
+        label="Highlights"
+        value={arrayToLines(draft.highlights)}
+        onChange={(v) => set("highlights", linesToArray(v))}
+        rows={4}
+        hint="One per line. Shown as tick-marked pills in the page hero. Three or four reads best."
+      />
+
+      <div className="grid gap-5 md:grid-cols-2">
+        <TextField
+          label="Intakes"
+          value={draft.intakes}
+          onChange={(v) => set("intakes", v)}
+          placeholder="February, July (limited November)"
+        />
+        <TextField
+          label="Work rights"
+          value={draft.work}
+          onChange={(v) => set("work", v)}
+          placeholder="48 hrs / fortnight, 2-4 yrs post-study"
+        />
+      </div>
+
+      <div className="grid gap-5 md:grid-cols-3">
+        <TextField
+          label="Tests accepted"
+          value={draft.tests}
+          onChange={(v) => set("tests", v)}
+          placeholder="IELTS / PTE / Duolingo"
+        />
+        <TextField
+          label="Tuition"
+          value={draft.tuition}
+          onChange={(v) => set("tuition", v)}
+          placeholder="AUD 25,000 - 45,000 a year"
+        />
+        <TextField
+          label="Cost of living"
+          value={draft.cost_living}
+          onChange={(v) => set("cost_living", v)}
+          placeholder="AUD 24,000 - 29,000 a year"
+        />
+      </div>
+
+      <TextArea
+        label="Overview"
+        value={draft.overview}
+        onChange={(v) => set("overview", v)}
+        rows={14}
+        hint={bodyHint}
+      />
+
+      <TextArea
+        label="Entry and visa requirements"
+        value={draft.requirements}
+        onChange={(v) => set("requirements", v)}
+        rows={10}
+        hint={bodyHint}
+      />
+
+      <TextArea
+        label="Popular universities"
+        value={arrayToLines(draft.universities)}
+        onChange={(v) => set("universities", linesToArray(v))}
+        rows={6}
+        hint="One per line. Listed in the sidebar of the destination page."
+      />
+
+      <ImageField
+        label="Destination photo"
+        value={draft.image}
+        onChange={(v) => set("image", v)}
+        folder="countries"
+        hint="Optional, but this is the page hero and the card image — a landscape photo makes the biggest single difference to how the destination looks. Without one it falls back to a branded panel."
+      />
+
+      <ToggleField
+        label="Published"
+        hint="The switch that shows or hides this destination everywhere at once: the header menu, the country guide, the enquiry dropdowns and the sitemap. Unpublished destinations stay here in the admin."
+        checked={draft.published}
+        onChange={(v) => set("published", v)}
+      />
+
+      {error && <Notice tone="error">{error}</Notice>}
+      {confirmDelete && (
+        <Notice tone="error">
+          Press <strong>Delete</strong> once more to permanently remove this destination and its
+          page. This cannot be undone — if you only want it off the site, untick Published instead.
+        </Notice>
+      )}
+
+      <EditorActions
+        busy={busy}
+        isEditing={Boolean(initial)}
+        onCancel={onCancel}
+        {...(onDelete ? { onDelete: remove } : {})}
+      />
+    </form>
+  );
+}
