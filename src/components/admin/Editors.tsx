@@ -777,7 +777,7 @@ export function CountryEditor({
           value={draft.flag}
           onChange={(v) => set("flag", v)}
           placeholder="AU"
-          hint="Two letters. Shown in the nav chip."
+          hint="Two-letter country code. Picks the flag shown in the nav menu."
         />
         <TextField
           label="URL slug"

@@ -1,5 +1,5 @@
 import { Link, useLocation } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   ArrowRight,
   ArrowUp,
@@ -7,16 +7,23 @@ import {
   ChevronDown,
   Clock,
   Facebook,
+  GraduationCap,
+  Languages,
+  Laptop,
+  type LucideIcon,
   Mail,
   MapPin,
   Menu,
   MessageCircle,
+  Mic,
+  Monitor,
   Moon,
   Phone,
   Sun,
   X,
 } from "lucide-react";
 
+import { exams } from "@/data/exams";
 import { site, telHref } from "@/data/site";
 import { magneticProps } from "@/lib/pointer-effects";
 import { useCountries } from "@/lib/use-countries";
@@ -115,43 +122,92 @@ function TopBar() {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Destinations menu                                                          */
+/* Header menus                                                               */
 /* -------------------------------------------------------------------------- */
 
-/** Shared row treatment for a country inside either menu. */
+/** Shared row treatment for an entry inside either menu. */
 const countryRowClass =
   "press flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-foreground";
 
+/**
+ * The country's flag, from the 4:3 SVGs bundled in `public/flags`.
+ *
+ * Bundled rather than pulled from a flag CDN: the file is under 2KB, and a
+ * hotlink would put the header's appearance at the mercy of someone else's
+ * uptime and referrer policy.
+ *
+ * Falls back to the letter code when the file is missing. The admin flag field
+ * is free text, so an unrecognised or mistyped code has to degrade to the old
+ * chip instead of a broken-image icon in the header.
+ */
 function FlagChip({ code }: { code: string }) {
+  const [failed, setFailed] = useState(false);
+  const file = code.trim().toLowerCase();
+
+  if (!file || failed) {
+    return (
+      <span className="surface-sun inline-flex size-7 shrink-0 items-center justify-center rounded-lg font-display text-[0.6rem] font-bold tracking-wider">
+        {code}
+      </span>
+    );
+  }
+
   return (
-    <span className="surface-sun inline-flex size-7 shrink-0 items-center justify-center rounded-lg font-display text-[0.6rem] font-bold tracking-wider">
-      {code}
-    </span>
+    <img
+      src={`/flags/${file}.svg`}
+      /* Decorative: the country name sits next to it in every row, so alt text
+         here would only make a screen reader say the country twice. */
+      alt=""
+      loading="lazy"
+      width={28}
+      height={21}
+      onError={() => setFailed(true)}
+      /* Hairline ring so the flags with a white edge — Japan, Malta, Finland —
+         keep a defined shape against the pale panel. */
+      className="h-5 w-7 shrink-0 rounded-[0.1875rem] object-cover ring-1 ring-ink/15"
+    />
   );
 }
 
 /**
- * "Destinations" in the desktop header opens onto every country rather than only
- * linking to the guide, so a visitor who already knows where they want to go
- * reaches that country's page in one move.
+ * The hover-and-focus disclosure behind both header dropdowns.
  *
- * The trigger stays a link to /countries rather than becoming a toggle button.
- * A toggle fights the hover: the pointer opens the panel on the way in, so the
- * click that follows would close what the user was reaching for. Leaving it a
- * link means clicking does the one thing the label promises, and the panel is
- * driven by hover and focus instead. Focus opening it is what keeps the menu
+ * "Destinations" and "Test Prep" open onto their contents rather than only
+ * linking to the landing page, so a visitor who already knows where they want to
+ * go — a country, or the one exam they need — gets there in one move.
+ *
+ * The trigger stays a link to the landing page rather than becoming a toggle
+ * button. A toggle fights the hover: the pointer opens the panel on the way in,
+ * so the click that follows would close what the user was reaching for. Leaving
+ * it a link means clicking does the one thing the label promises, and the panel
+ * is driven by hover and focus instead. Focus opening it is what keeps the menu
  * reachable by keyboard without a second control to tab through.
  *
  * A disclosure, not a menubar: the panel holds plain links, so `aria-expanded`
  * describes it honestly where `role="menu"` would promise arrow-key semantics
  * this does not implement.
+ *
+ * `children` is a function so the panel's links can close the menu they sit in
+ * without every caller re-deriving the setter.
  */
-function DestinationsMenu() {
+function HeaderMenu({
+  label,
+  to,
+  menuId,
+  active,
+  panelClass,
+  children,
+}: {
+  label: string;
+  to: SitePath;
+  menuId: string;
+  active: boolean;
+  panelClass: string;
+  children: (close: () => void) => ReactNode;
+}) {
   const [open, setOpen] = useState(false);
   const wrap = useRef<HTMLDivElement>(null);
-  const { pathname } = useLocation();
-  const countries = useCountries();
-  const onGuide = pathname.startsWith("/countries");
+  const close = () => setOpen(false);
 
   useEffect(() => {
     if (!open) return;
@@ -183,17 +239,17 @@ function DestinationsMenu() {
       }}
     >
       <Link
-        to="/countries"
+        to={to}
         aria-expanded={open}
-        aria-controls="destinations-menu"
-        onClick={() => setOpen(false)}
-        className={`press inline-flex items-center gap-1 rounded-full px-3.5 py-2 text-sm font-medium ${
-          onGuide
+        aria-controls={menuId}
+        onClick={close}
+        className={`press inline-flex items-center gap-1 whitespace-nowrap rounded-full px-3 py-2 text-sm font-medium ${
+          active
             ? "bg-primary-soft text-primary"
             : "text-muted-foreground hover:bg-secondary hover:text-secondary-foreground"
         }`}
       >
-        Destinations
+        {label}
         <ChevronDown
           aria-hidden="true"
           className={`size-3.5 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
@@ -202,9 +258,30 @@ function DestinationsMenu() {
 
       {open && (
         <div
-          id="destinations-menu"
-          className="animate-in fade-in slide-in-from-top-1 glass absolute left-0 top-full z-50 w-120 rounded-2xl border border-border p-3 shadow-float duration-150"
+          id={menuId}
+          className={`animate-in fade-in slide-in-from-top-1 glass absolute left-0 top-full z-50 rounded-2xl border border-border p-3 shadow-float duration-150 ${panelClass}`}
         >
+          {children(close)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DestinationsMenu() {
+  const { pathname } = useLocation();
+  const countries = useCountries();
+
+  return (
+    <HeaderMenu
+      label="Destinations"
+      to="/countries"
+      menuId="destinations-menu"
+      active={pathname.startsWith("/countries")}
+      panelClass="w-120"
+    >
+      {(close) => (
+        <>
           {/* Two columns: fourteen countries in one column would run past the
               fold on a laptop. */}
           <ul className="grid grid-cols-2 gap-0.5">
@@ -213,7 +290,7 @@ function DestinationsMenu() {
                 <Link
                   to="/countries/$slug"
                   params={{ slug: c.slug }}
-                  onClick={() => setOpen(false)}
+                  onClick={close}
                   className={countryRowClass}
                 >
                   <FlagChip code={c.flag} />
@@ -224,22 +301,96 @@ function DestinationsMenu() {
           </ul>
           <Link
             to="/countries"
-            onClick={() => setOpen(false)}
+            onClick={close}
             className="mt-2 flex items-center justify-between gap-2 border-t border-border px-3 pt-3 text-sm font-semibold text-primary hover:text-primary/80"
           >
             Compare all {countries.length} destinations
             <ArrowRight className="size-4" />
           </Link>
-        </div>
+        </>
       )}
-    </div>
+    </HeaderMenu>
   );
 }
 
-/** The same countries, collapsed by default inside the mobile menu. */
-function MobileDestinations({ onNavigate }: { onNavigate: () => void }) {
+/**
+ * Icon per exam, keyed on the slug.
+ *
+ * Each one points at what actually separates that test from the other three —
+ * a real examiner, a machine score, sitting it at home, a different language —
+ * rather than four interchangeable document icons. Lives here rather than in
+ * `data/exams.ts` so the data file stays free of React imports, matching how
+ * the test-preparation page maps its own icons.
+ */
+const examIcons: Record<string, LucideIcon> = {
+  ielts: Mic,
+  pte: Monitor,
+  duolingo: Laptop,
+  jlpt: Languages,
+};
+
+/**
+ * The four exams, reached from any page.
+ *
+ * One column rather than the two the destinations use: there are four entries,
+ * and the full names ("Duolingo English Test") are too long to sit side by side.
+ *
+ * Rows link to the anchor for that exam on the single test-preparation page,
+ * which is where the detail already lives — there are no per-exam routes, and
+ * the page gives every card `scroll-mt-36` so the sticky header does not cover
+ * the heading on arrival.
+ */
+function TestPrepMenu() {
+  const { pathname } = useLocation();
+
+  return (
+    <HeaderMenu
+      label="Test Prep"
+      to="/test-preparation"
+      menuId="test-prep-menu"
+      active={pathname.startsWith("/test-preparation")}
+      panelClass="w-76"
+    >
+      {(close) => (
+        <>
+          <ul className="grid gap-0.5">
+            {exams.map((e) => {
+              const Icon = examIcons[e.slug] ?? GraduationCap;
+              return (
+                <li key={e.slug}>
+                  <Link
+                    to="/test-preparation"
+                    hash={e.slug}
+                    onClick={close}
+                    className={countryRowClass}
+                  >
+                    <span className="surface-sun inline-flex size-7 shrink-0 items-center justify-center rounded-lg">
+                      <Icon aria-hidden="true" className="size-3.5" />
+                    </span>
+                    <span className="truncate">{e.name}</span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+          <Link
+            to="/test-preparation"
+            hash="compare"
+            onClick={close}
+            className="mt-2 flex items-center justify-between gap-2 border-t border-border px-3 pt-3 text-sm font-semibold text-primary hover:text-primary/80"
+          >
+            Compare all {exams.length} tests
+            <ArrowRight className="size-4" />
+          </Link>
+        </>
+      )}
+    </HeaderMenu>
+  );
+}
+
+/** The collapsible wrapper both sections share inside the mobile menu. */
+function MobileSection({ label, children }: { label: string; children: ReactNode }) {
   const [expanded, setExpanded] = useState(false);
-  const countries = useCountries();
 
   return (
     <div>
@@ -249,7 +400,7 @@ function MobileDestinations({ onNavigate }: { onNavigate: () => void }) {
         onClick={() => setExpanded((v) => !v)}
         className="press flex w-full items-center justify-between rounded-xl px-4 py-3 text-sm font-medium text-foreground hover:bg-secondary"
       >
-        Destinations
+        {label}
         <ChevronDown
           aria-hidden="true"
           className={`size-4 text-muted-foreground transition-transform duration-200 ${
@@ -260,31 +411,77 @@ function MobileDestinations({ onNavigate }: { onNavigate: () => void }) {
 
       {expanded && (
         <ul className="animate-in fade-in slide-in-from-top-1 my-1 ml-4 grid gap-0.5 border-l border-border pl-2 duration-150">
-          <li>
-            <Link
-              to="/countries"
-              onClick={onNavigate}
-              className="press flex rounded-xl px-3 py-2 text-sm font-semibold text-primary hover:bg-secondary"
-            >
-              All {countries.length} destinations
-            </Link>
-          </li>
-          {countries.map((c) => (
-            <li key={c.slug}>
-              <Link
-                to="/countries/$slug"
-                params={{ slug: c.slug }}
-                onClick={onNavigate}
-                className={countryRowClass}
-              >
-                <FlagChip code={c.flag} />
-                {c.name}
-              </Link>
-            </li>
-          ))}
+          {children}
         </ul>
       )}
     </div>
+  );
+}
+
+/** The same countries, collapsed by default inside the mobile menu. */
+function MobileDestinations({ onNavigate }: { onNavigate: () => void }) {
+  const countries = useCountries();
+
+  return (
+    <MobileSection label="Destinations">
+      <li>
+        <Link
+          to="/countries"
+          onClick={onNavigate}
+          className="press flex rounded-xl px-3 py-2 text-sm font-semibold text-primary hover:bg-secondary"
+        >
+          All {countries.length} destinations
+        </Link>
+      </li>
+      {countries.map((c) => (
+        <li key={c.slug}>
+          <Link
+            to="/countries/$slug"
+            params={{ slug: c.slug }}
+            onClick={onNavigate}
+            className={countryRowClass}
+          >
+            <FlagChip code={c.flag} />
+            {c.name}
+          </Link>
+        </li>
+      ))}
+    </MobileSection>
+  );
+}
+
+/** The same exams, collapsed by default inside the mobile menu. */
+function MobileTestPrep({ onNavigate }: { onNavigate: () => void }) {
+  return (
+    <MobileSection label="Test Prep">
+      <li>
+        <Link
+          to="/test-preparation"
+          onClick={onNavigate}
+          className="press flex rounded-xl px-3 py-2 text-sm font-semibold text-primary hover:bg-secondary"
+        >
+          All {exams.length} tests
+        </Link>
+      </li>
+      {exams.map((e) => {
+        const Icon = examIcons[e.slug] ?? GraduationCap;
+        return (
+          <li key={e.slug}>
+            <Link
+              to="/test-preparation"
+              hash={e.slug}
+              onClick={onNavigate}
+              className={countryRowClass}
+            >
+              <span className="surface-sun inline-flex size-7 shrink-0 items-center justify-center rounded-lg">
+                <Icon aria-hidden="true" className="size-3.5" />
+              </span>
+              {e.name}
+            </Link>
+          </li>
+        );
+      })}
+    </MobileSection>
   );
 }
 
@@ -383,17 +580,24 @@ export function Header() {
         <div className="mx-auto flex h-18 max-w-6xl items-center justify-between gap-4 px-5">
           <Logo />
 
+          {/* Seven items with two dropdown chevrons leave about 16px spare at the
+              lg breakpoint, so the labels are whitespace-nowrap: without it flex
+              shrinks the row and the two-word labels quietly wrap to two lines
+              instead of anything visibly breaking. Another item needs the width
+              found somewhere first. */}
           <nav className="hidden items-center gap-0.5 lg:flex" aria-label="Main">
             {nav.map((item) =>
               item.to === "/countries" ? (
                 <DestinationsMenu key={item.to} />
+              ) : item.to === "/test-preparation" ? (
+                <TestPrepMenu key={item.to} />
               ) : (
                 <Link
                   key={item.to}
                   to={item.to}
                   activeOptions={{ exact: item.to === "/" }}
                   activeProps={{ className: "bg-primary-soft text-primary" }}
-                  className="press rounded-full px-3.5 py-2 text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-secondary-foreground"
+                  className="press whitespace-nowrap rounded-full px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-secondary-foreground"
                 >
                   {item.label}
                 </Link>
@@ -451,6 +655,8 @@ export function Header() {
             {nav.map((item) =>
               item.to === "/countries" ? (
                 <MobileDestinations key={item.to} onNavigate={() => setOpen(false)} />
+              ) : item.to === "/test-preparation" ? (
+                <MobileTestPrep key={item.to} onNavigate={() => setOpen(false)} />
               ) : (
                 <Link
                   key={item.to}
