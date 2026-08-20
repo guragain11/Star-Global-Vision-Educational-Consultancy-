@@ -5,10 +5,11 @@ import { CtaBand, SiteLayout } from "@/components/site/Chrome";
 import { BlogCard, CategoryChip } from "@/components/site/ContentCards";
 import { Reveal } from "@/components/site/Reveal";
 import { RichText } from "@/components/site/RichText";
-import { site } from "@/data/site";
+import { postCta, postRelated } from "@/data/page-copy";
 import { fetchBlogPost, fetchBlogPosts } from "@/lib/content-api";
 import { formatDate, readingTime, toPlainText } from "@/lib/content-utils";
-import { absoluteUrl, breadcrumbJsonLd } from "@/lib/seo";
+import { absoluteUrl, breadcrumbJsonLd, settingsFromMatches } from "@/lib/seo";
+import { useCopy } from "@/lib/use-site-content";
 
 export const Route = createFileRoute("/blog/$slug")({
   // Loading in the route loader lets the head() below emit real per-post SEO tags,
@@ -18,9 +19,10 @@ export const Route = createFileRoute("/blog/$slug")({
     if (!post) throw notFound();
     return { post, allPosts };
   },
-  head: ({ loaderData }) => {
+  head: ({ loaderData, matches }) => {
     const post = loaderData?.post;
     if (!post) return {};
+    const settings = settingsFromMatches(matches);
     const description = post.excerpt || toPlainText(post.content, 160);
     const url = absoluteUrl(`/blog/${post.slug}`);
     // Covers uploaded to Supabase storage are already absolute; absoluteUrl leaves
@@ -29,7 +31,7 @@ export const Route = createFileRoute("/blog/$slug")({
 
     return {
       meta: [
-        { title: `${post.title} | Star Global Vision` },
+        { title: `${post.title} | ${settings.name}` },
         { name: "description", content: description },
         { name: "author", content: post.author },
         { property: "og:title", content: post.title },
@@ -52,7 +54,7 @@ export const Route = createFileRoute("/blog/$slug")({
             description,
             datePublished: post.published_at,
             author: { "@type": "Organization", name: post.author },
-            publisher: { "@type": "Organization", name: site.legalName },
+            publisher: { "@type": "Organization", name: settings.legal_name },
             ...(cover ? { image: cover } : {}),
           }),
         },
@@ -95,6 +97,9 @@ function PostNotFound() {
 
 function BlogDetail() {
   const { post, allPosts } = Route.useLoaderData();
+  // Read here rather than in the rail, which only renders when there is another
+  // article to suggest.
+  const relatedCopy = useCopy(postRelated);
 
   // Prefer same-category articles, then fill up to three with anything else.
   const related = (() => {
@@ -173,8 +178,7 @@ function BlogDetail() {
           <Reveal as="aside" className="mt-14">
             <CtaBand
               variant="quiet"
-              title="Questions about your own application?"
-              intro="Bring your documents to our Bagbazar office and a counsellor will map out your country, course and budget, free of cost."
+              {...useCopy(postCta)}
               primary={{ to: "/contact", label: "Book free counselling" }}
             />
           </Reveal>
@@ -185,9 +189,7 @@ function BlogDetail() {
         <section className="border-t border-border bg-secondary/50 py-16 md:py-20">
           <div className="mx-auto max-w-6xl px-5">
             <Reveal>
-              <h2 className="font-display text-2xl font-bold md:text-3xl">
-                More from our counselling desk
-              </h2>
+              <h2 className="font-display text-2xl font-bold md:text-3xl">{relatedCopy.title}</h2>
             </Reveal>
             <Reveal stagger className="mt-8 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {related.map((item) => (

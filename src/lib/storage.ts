@@ -24,6 +24,14 @@ export const ACCEPTED_IMAGE_TYPES = [
 /** `accept` attribute for a file input, kept in step with the list above. */
 export const ACCEPT_ATTRIBUTE = ACCEPTED_IMAGE_TYPES.join(",");
 
+/**
+ * The folders inside the bucket, one per kind of record. Declared here rather
+ * than inline at each signature so `ImageField` and `uploadImage` cannot drift
+ * apart — a folder the picker offers but the uploader rejects is a runtime
+ * failure that types should catch.
+ */
+export type MediaFolder = "blog" | "stories" | "team" | "countries" | "site";
+
 const EXTENSIONS: Record<string, string> = {
   "image/jpeg": "jpg",
   "image/png": "png",
@@ -81,10 +89,7 @@ function buildPath(folder: string, file: File): string {
  * Throws with the Supabase message when the request fails, which surfaces
  * "new row violates row-level security policy" if the session has expired.
  */
-export async function uploadImage(
-  file: File,
-  folder: "blog" | "stories" | "team" | "countries",
-): Promise<string> {
+export async function uploadImage(file: File, folder: MediaFolder): Promise<string> {
   const supabase = getSupabase();
   if (!supabase) throw new Error("Supabase is not configured.");
 

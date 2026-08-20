@@ -11,7 +11,14 @@
  * university cut-offs) is written as an approximate range and paired with the
  * `verify` note rendered on the page. Score targets are the requirements our
  * counsellors see on offer letters, not promises made by the test owner.
+ *
+ * This is now the fallback rather than the only copy: the same records are
+ * editable in /admin through `examsSpec`, and the page shows whatever is saved
+ * there instead. Keep this list current anyway — it is what a fresh install and
+ * an unreachable database both show.
  */
+
+import { slugify } from "@/lib/content-utils";
 
 export type ExamSection = {
   name: string;
@@ -40,8 +47,19 @@ export type Exam = {
   classNotes: string[];
   courseLength: string;
   batches: string;
-  accent: string;
 };
+
+/**
+ * The anchor for one exam's panel, as in /test-preparation#ielts.
+ *
+ * Run through `slugify` rather than trusted: `slug` is typed by hand in /admin,
+ * and a capital letter or a space in it produces a link that silently scrolls
+ * nowhere. Falling back to the position keeps the anchors distinct and working
+ * even if somebody clears the field.
+ */
+export function examAnchor(exam: Exam, index: number): string {
+  return slugify(exam.slug) || `exam-${index + 1}`;
+}
 
 export const exams: Exam[] = [
   {
@@ -96,7 +114,6 @@ export const exams: Exam[] = [
     ],
     courseLength: "6 weeks",
     batches: "Morning · Day · Evening",
-    accent: "from-primary/12",
   },
   {
     slug: "pte",
@@ -144,7 +161,6 @@ export const exams: Exam[] = [
     ],
     courseLength: "4-6 weeks",
     batches: "Morning · Evening",
-    accent: "from-accent/14",
   },
   {
     slug: "duolingo",
@@ -192,7 +208,6 @@ export const exams: Exam[] = [
     ],
     courseLength: "3 weeks",
     batches: "Flexible batches",
-    accent: "from-primary/10",
   },
   {
     slug: "jlpt",
@@ -240,7 +255,6 @@ export const exams: Exam[] = [
     ],
     courseLength: "3-6 months",
     batches: "Morning · Day",
-    accent: "from-accent/12",
   },
 ];
 

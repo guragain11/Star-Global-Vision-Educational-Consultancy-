@@ -16,3 +16,15 @@ export const advantageIcons: Record<Advantage["icon"], LucideIcon> = {
   "badge-check": BadgeCheck,
   "life-buoy": LifeBuoy,
 };
+
+/**
+ * The glyph for a name, or the scales as a fallback.
+ *
+ * The name is chosen from a dropdown in /admin but stored inside a jsonb
+ * column, so nothing at the database level stops a row from carrying a glyph
+ * that has since been renamed in code. Rendering `undefined` as a component
+ * would take out the whole page, and a wrong icon is a far cheaper failure.
+ */
+export function advantageIcon(name: string): LucideIcon {
+  return advantageIcons[name as Advantage["icon"]] ?? Scale;
+}

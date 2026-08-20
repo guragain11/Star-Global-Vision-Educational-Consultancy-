@@ -97,8 +97,8 @@ function emptyCountryDraft(): CountryDraft {
   };
 }
 
-/** Shared action row for both editors. */
-function EditorActions({
+/** Shared action row for every editor, including the generic one. */
+export function EditorActions({
   busy,
   isEditing,
   onCancel,

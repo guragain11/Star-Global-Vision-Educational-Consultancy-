@@ -1,6 +1,9 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
+import type { ContentRow } from "@/data/collections";
 import type { BlogPost, Country, SuccessStory, TeamMember } from "@/data/content";
+import type { CopyRow } from "@/data/page-copy";
+import type { SiteSettings } from "@/data/site";
 
 /**
  * A contact form submission. Anyone may insert one; only a signed-in staff
@@ -53,6 +56,22 @@ export type Database = {
       success_stories: TableShape<SuccessStory>;
       team_members: TableShape<TeamMember>;
       countries: TableShape<Country>;
+      /** Every editable list on the site, discriminated by `collection`. */
+      site_content: TableShape<ContentRow>;
+      /**
+       * Heading overrides for the marketing pages, keyed by `(page, section)`.
+       * The save path upserts on that pair, which is why it is a unique index in
+       * the schema rather than just a lookup one.
+       */
+      page_sections: TableShape<CopyRow>;
+      site_settings: {
+        Row: SiteSettings & { created_at: string; updated_at: string };
+        // `id` is included rather than omitted, unlike the uuid tables: the save
+        // path upserts on it to create-or-update the single row in one call.
+        Insert: SiteSettings;
+        Update: Partial<SiteSettings>;
+        Relationships: [];
+      };
       enquiries: {
         Row: Enquiry;
         // Timestamps and the staff-only columns are all defaulted in Postgres.
@@ -77,6 +96,20 @@ const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
  * before Supabase is wired up.
  */
 export const isSupabaseConfigured = Boolean(url && anonKey);
+
+/**
+ * Deep link to this project's SQL editor, or null when the URL is not a hosted
+ * Supabase project (self-hosted, or a local `supabase start`).
+ *
+ * Derived from the configured URL rather than hardcoded, so the setup card in
+ * /admin points at the reader's own project. The ref is the first label of
+ * `<ref>.supabase.co` and is not a secret — it is the API host every visitor's
+ * browser already connects to.
+ */
+export const sqlEditorUrl: string | null = (() => {
+  const ref = url?.match(/^https:\/\/([a-z0-9]+)\.supabase\.co\/?$/i)?.[1];
+  return ref ? `https://supabase.com/dashboard/project/${ref}/sql/new` : null;
+})();
 
 let client: SupabaseClient<Database> | null = null;
 

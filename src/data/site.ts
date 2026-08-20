@@ -1,22 +1,84 @@
-export const site = {
+/**
+ * Business details and SEO defaults for the whole site.
+ *
+ * One row in the `site_settings` table, edited in /admin. The primary key is the
+ * literal `"main"` — the table has a check constraint that allows no other
+ * value, so a second row is a database error rather than a silent ambiguity
+ * about which one wins.
+ *
+ * Every field is required, and `site` below is the fallback for a table that has
+ * no row yet. That keeps the "is this missing?" question in one place instead of
+ * at the fifty-odd call sites that read these values.
+ */
+export type SiteSettings = {
+  id: "main";
+  name: string;
+  legal_name: string;
+  mission: string;
+  address: string;
+  email: string;
+  /**
+   * Two numbers, separately: the top bar shows the landline and the mobile CTA
+   * shows the mobile, so they are not interchangeable and a positional array
+   * left them impossible to label in the editor.
+   */
+  phone_primary: string;
+  phone_secondary: string;
+  /** Digits only in international format, for wa.me links. */
+  whatsapp: string;
+  facebook: string;
+  approval: string;
+  hours: string;
+  /** Free text passed to the Google Maps embed on /contact. */
+  map_query: string;
+  /** Defaults for pages that do not set their own. */
+  seo_title: string;
+  seo_description: string;
+  og_image: string | null;
+};
+
+/**
+ * What the site shows before anyone edits it in /admin.
+ *
+ * Read through `useSettings()` (lib/use-site-content.ts), never imported
+ * directly by a page — the point is that staff can change all of this without a
+ * deploy. It stays here as the fallback so an empty table, an unconfigured
+ * Supabase or a database outage renders the real business details rather than
+ * blank space.
+ */
+export const site: SiteSettings = {
+  id: "main",
   name: "Star Global Vision",
-  legalName: "Star Global Vision Educational Consultancy",
-  tagline: "Study abroad counselling, test classes and visa filing in Bagbazar, Kathmandu.",
+  legal_name: "Star Global Vision Educational Consultancy",
   mission:
     "Our mission is to provide proper counselling, documentation, language skill, cultural exchange of desired country, administrative and technical support to the aspiring potential candidates willing to study in different world ranked universities & colleges in the world.",
   address: "Bagbazar-28, Kathmandu, Nepal",
   email: "starglobalvision@gmail.com",
+  phone_primary: "977-01-5364635",
+  phone_secondary: "977-9841902452",
+  whatsapp: "9779841902452",
   facebook: "https://fb.com/starglobalvision",
-  phones: ["977-01-5364635", "977-9841902452"] as const,
   approval: "Approved by Ministry of Social Development",
   hours: "Sunday - Friday, 7:00 AM - 6:00 PM",
-  /** Digits only in international format, for wa.me links. */
-  whatsapp: "9779841902452",
-  mapQuery: "Bagbazar, Kathmandu, Nepal",
+  map_query: "Bagbazar, Kathmandu, Nepal",
+  seo_title: "Star Global Vision Educational Consultancy",
+  seo_description:
+    "Study abroad consultancy in Bagbazar, Kathmandu, covering Australia, Canada, USA, UK, New Zealand, the Nordics, Japan, South Korea, the UAE and test preparation.",
+  og_image: null,
 };
 
 /** Digits-only phone number, safe for tel: hrefs. */
 export const telHref = (phone: string) => `tel:${phone.replace(/[^0-9]/g, "")}`;
+
+/**
+ * Both phone numbers as a list, blanks dropped.
+ *
+ * The footer and the contact page list every number they have. Staff can clear
+ * the second one, and a `tel:` link to an empty string is a dead link, so the
+ * filter belongs here rather than in each of those two loops.
+ */
+export const sitePhones = (settings: SiteSettings): string[] =>
+  [settings.phone_primary, settings.phone_secondary].map((p) => p.trim()).filter(Boolean);
 
 export const tests = [
   {
@@ -168,6 +230,22 @@ export const processSteps = [
   },
 ];
 
+/**
+ * The Lucide glyphs an advantage can use.
+ *
+ * A list rather than a union written inline, because /admin offers it as a
+ * dropdown: the options and the type have to be the same six names, and
+ * deriving one from the other is the only way that stays true.
+ */
+export const advantageIconNames = [
+  "scale",
+  "school",
+  "file-check",
+  "user-round",
+  "badge-check",
+  "life-buoy",
+] as const;
+
 export type Advantage = {
   title: string;
   detail: string;
@@ -175,7 +253,7 @@ export type Advantage = {
    * Lucide glyph name. Kept as a string so this file stays free of React
    * imports; the name-to-component map lives in the view that renders icons.
    */
-  icon: "scale" | "school" | "file-check" | "user-round" | "badge-check" | "life-buoy";
+  icon: (typeof advantageIconNames)[number];
 };
 
 /** Differentiators used in the "Why us" band. */
@@ -260,5 +338,29 @@ export const faqs = [
   {
     q: "Will I be able to work while studying?",
     a: "Every destination we handle allows part-time work during study, from 20 hours a week in the U.K to 48 hours a fortnight in Australia. We are realistic with you about earnings: part-time work supports your living costs, it does not fund your tuition.",
+  },
+];
+
+/**
+ * Practical notes for a first visit: the questions we field most on the phone.
+ *
+ * Lived in the Contact route until it became editable. Kept here with the other
+ * seed lists so `collections.ts` has one place to import from.
+ */
+export const visitNotes = [
+  {
+    title: "No appointment needed",
+    detail:
+      "Walk in during office hours and a counsellor will see you. Booking ahead just means less waiting during the busy intake months.",
+  },
+  {
+    title: "What to bring",
+    detail:
+      "Your academic transcripts and certificates, citizenship or passport, and any IELTS, PTE or Duolingo score you already have. Photocopies are fine for a first session.",
+  },
+  {
+    title: "Counselling is free",
+    detail:
+      "Profile assessment, country shortlisting and course advice cost nothing. You only pay official university, test and government fees, always shown to you in writing first.",
   },
 ];

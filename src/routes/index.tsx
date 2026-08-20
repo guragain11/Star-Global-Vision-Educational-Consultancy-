@@ -1,28 +1,48 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowRight, BadgeCheck, Quote, Star } from "lucide-react";
 import { CtaBand, SectionHeading, SiteLayout } from "@/components/site/Chrome";
-import { advantageIcons } from "@/components/site/advantage-icons";
+import { advantageIcon } from "@/components/site/advantage-icons";
 import { BlogCard, CoverFallback, StoryCard } from "@/components/site/ContentCards";
 import { Counter } from "@/components/site/Counter";
 import { FaqList } from "@/components/site/Faq";
 import { Reveal } from "@/components/site/Reveal";
 import { SplitWords } from "@/components/site/SplitWords";
-import { absoluteUrl, defaultOgImage, faqJsonLd, siteUrl } from "@/lib/seo";
+import {
+  absoluteUrl,
+  collectionFromMatches,
+  defaultOgImage,
+  faqJsonLd,
+  settingsFromMatches,
+  siteUrl,
+} from "@/lib/seo";
 import { fetchBlogPosts, fetchSuccessStories } from "@/lib/content-api";
 import { capitalise, numberWord } from "@/lib/content-utils";
 import { magneticProps } from "@/lib/pointer-effects";
 import { useCountries, useStats } from "@/lib/use-countries";
+import { useCollection, useCopy, useSettings } from "@/lib/use-site-content";
 import {
-  processSteps,
-  services,
-  site,
-  telHref,
-  testimonials,
-  tests,
-  partners,
-  advantages,
-  faqs,
-} from "@/data/site";
+  advantagesSpec,
+  faqsSpec,
+  partnersSpec,
+  processStepsSpec,
+  servicesSpec,
+  testimonialsSpec,
+  testsSpec,
+} from "@/data/collections";
+import {
+  homeBlog,
+  homeCta,
+  homeDestinations,
+  homeFaqs,
+  homeHero,
+  homePartners,
+  homeProcess,
+  homeServices,
+  homeStories,
+  homeTestPrep,
+  homeWhyUs,
+} from "@/data/page-copy";
+import { sitePhones, telHref } from "@/data/site";
 import heroImage from "@/assets/hero-students.jpg";
 
 export const Route = createFileRoute("/")({
@@ -32,66 +52,94 @@ export const Route = createFileRoute("/")({
     const [stories, posts] = await Promise.all([fetchSuccessStories(), fetchBlogPosts()]);
     return { stories, posts };
   },
-  head: () => ({
-    meta: [
-      { title: "Star Global Vision Educational Consultancy | Study Abroad from Nepal" },
-      {
-        name: "description",
-        content:
-          "Study abroad consultancy in Bagbazar, Kathmandu for Australia, Canada, USA, UK, New Zealand, the Nordics, Japan, South Korea, the UAE and more. IELTS, PTE, Duolingo and Japanese classes.",
-      },
-      { property: "og:title", content: "Star Global Vision Educational Consultancy" },
-      {
-        property: "og:description",
-        content:
-          "Counselling, documentation, test preparation and visa support for students from Nepal heading to world-ranked universities.",
-      },
-      { property: "og:type", content: "website" },
-      { property: "og:url", content: absoluteUrl("/") },
-      { property: "og:image", content: defaultOgImage },
-      { name: "twitter:card", content: "summary_large_image" },
-    ],
-    links: [{ rel: "canonical", href: absoluteUrl("/") }],
-    scripts: [
-      {
-        type: "application/ld+json",
-        children: JSON.stringify({
-          "@context": "https://schema.org",
-          "@type": "EducationalOrganization",
-          name: site.legalName,
-          alternateName: site.name,
-          url: siteUrl,
-          logo: defaultOgImage,
-          email: site.email,
-          telephone: site.phones,
-          sameAs: [site.facebook],
-          address: {
-            "@type": "PostalAddress",
-            streetAddress: "Bagbazar-28",
-            addressLocality: "Kathmandu",
-            addressCountry: "NP",
-          },
-        }),
-      },
-      {
-        type: "application/ld+json",
-        children: faqJsonLd(faqs),
-      },
-    ],
-  }),
+  head: ({ matches }) => {
+    const settings = settingsFromMatches(matches);
+
+    return {
+      meta: [
+        { title: `${settings.legal_name} | Study Abroad from Nepal` },
+        {
+          name: "description",
+          content:
+            "Study abroad consultancy in Bagbazar, Kathmandu for Australia, Canada, USA, UK, New Zealand, the Nordics, Japan, South Korea, the UAE and more. IELTS, PTE, Duolingo and Japanese classes.",
+        },
+        { property: "og:title", content: settings.legal_name },
+        {
+          property: "og:description",
+          content:
+            "Counselling, documentation, test preparation and visa support for students from Nepal heading to world-ranked universities.",
+        },
+        { property: "og:type", content: "website" },
+        { property: "og:url", content: absoluteUrl("/") },
+        { name: "twitter:card", content: "summary_large_image" },
+      ],
+      links: [{ rel: "canonical", href: absoluteUrl("/") }],
+      scripts: [
+        {
+          type: "application/ld+json",
+          children: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "EducationalOrganization",
+            name: settings.legal_name,
+            alternateName: settings.name,
+            url: siteUrl,
+            logo: defaultOgImage,
+            email: settings.email,
+            telephone: sitePhones(settings),
+            sameAs: settings.facebook ? [settings.facebook] : [],
+            address: {
+              "@type": "PostalAddress",
+              streetAddress: "Bagbazar-28",
+              addressLocality: "Kathmandu",
+              addressCountry: "NP",
+            },
+          }),
+        },
+        {
+          type: "application/ld+json",
+          children: faqJsonLd(collectionFromMatches(matches, faqsSpec)),
+        },
+      ],
+    };
+  },
   component: Home,
 });
 
 function Home() {
   const { stories, posts } = Route.useLoaderData();
   const countries = useCountries();
+  const settings = useSettings();
+  const phones = sitePhones(settings);
+  // The mobile is the number to put on a call button; the landline leads the copy.
+  const callNumber = phones[1] ?? phones[0];
   const headlineStats = useStats();
+  // The floating card over the hero photo repeats one of these figures. Found by
+  // label rather than by position, because the list is reorderable in /admin and
+  // whatever sits third is whatever staff last dragged there. If they delete the
+  // visa figure the line goes with it, which is the honest outcome.
+  const floatingFigure = headlineStats.find((s) => /visa/i.test(s.label));
+  // Everything below is edited in /admin, and falls back to the built-in lists.
+  const services = useCollection(servicesSpec);
+  const processSteps = useCollection(processStepsSpec);
+  const advantages = useCollection(advantagesSpec);
+  const tests = useCollection(testsSpec);
+  const testimonials = useCollection(testimonialsSpec);
+  const partners = useCollection(partnersSpec);
+  const faqs = useCollection(faqsSpec);
   const primary = countries.filter((c) => c.tier === "primary");
   // Named in the line under the rail, so the copy tracks the data.
   const alsoPlacing = countries.filter((c) => c.tier === "secondary").map((c) => c.name);
 
+  // The hero is the one block whose heading and intro are rendered separately
+  // rather than through SectionHeading, so it needs the record rather than a
+  // spread. Every other block on this page spreads `useCopy` straight in.
+  const hero = useCopy(homeHero);
+  // The partner band is a single line of eyebrow type with no heading under it,
+  // so it reads the one field it renders instead of spreading a whole block.
+  const partnersLabel = useCopy(homePartners).eyebrow;
+
   // Featured stories lead; anything else fills the row up to three.
-  const homeStories = (() => {
+  const shownStories = (() => {
     const featured = stories.filter((s) => s.featured);
     return [...featured, ...stories.filter((s) => !s.featured)].slice(0, 3);
   })();
@@ -113,20 +161,18 @@ function Home() {
           <div>
             <p className="glass-ink inline-flex items-center gap-2 rounded-full border border-ink-foreground/25 px-3 py-1.5 text-xs font-medium text-ink-foreground/85">
               <BadgeCheck className="size-4 text-accent" />
-              {site.approval}
+              {settings.approval}
             </p>
-            {/* The five closing words take the sun gradient, which is where the
+            {/* The closing words take the sun gradient, which is where the
                 promise of the sentence actually lands. */}
             <SplitWords
               as="h1"
-              text="University applications, test preparation and visa filing, handled in one office."
+              text={hero.title}
               highlightWords={4}
               className="mt-6 text-balance font-display text-display-xl font-bold"
             />
             <p className="mt-6 max-w-xl text-base leading-relaxed text-ink-foreground/75 md:text-lg">
-              Star Global Vision guides students from Bagbazar, Kathmandu to world-ranked
-              universities in Australia, the USA, Canada, the UK and beyond. Counselling,
-              documentation, language classes and visa support under one roof.
+              {hero.intro}
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
@@ -169,7 +215,18 @@ function Home() {
                   <Star key={i} className="size-4 fill-current" />
                 ))}
               </p>
-              <p className="mt-1 text-sm font-semibold">98% visa success rate</p>
+              {/*
+                Read from the figures list rather than written here. It used to
+                say "98% visa success rate" in the markup, six lines below the
+                same number coming out of /admin — so editing the figure moved
+                the counter above and left this card claiming the old one.
+              */}
+              {floatingFigure && (
+                <p className="mt-1 text-sm font-semibold">
+                  {floatingFigure.to}
+                  {floatingFigure.suffix} {floatingFigure.label.toLowerCase()}
+                </p>
+              )}
               <p className="text-xs text-muted-foreground">
                 Across {countries.length} destinations
               </p>
@@ -185,10 +242,11 @@ function Home() {
       <section className="mx-auto max-w-6xl px-5 py-12 md:py-16">
         <Reveal className="flex flex-wrap items-end justify-between gap-4">
           <SectionHeading
-            eyebrow="Where you can go"
-            title={`${capitalise(numberWord(primary.length))} flagship destinations, ${numberWord(
-              countries.length,
-            )} in total`}
+            {...useCopy(homeDestinations, {
+              title: `${capitalise(numberWord(primary.length))} flagship destinations, ${numberWord(
+                countries.length,
+              )} in total`,
+            })}
           />
           <Link
             to="/countries"
@@ -241,16 +299,18 @@ function Home() {
 
       {/* Partner institutions: a quiet trust band between the two big sections */}
       <section className="relative overflow-hidden border-y border-border bg-secondary/40 py-10">
-        <p className="eyebrow text-center [--eyebrow-color:var(--color-muted-foreground)]">
-          Students placed at
-        </p>
+        {partnersLabel && (
+          <p className="eyebrow text-center [--eyebrow-color:var(--color-muted-foreground)]">
+            {partnersLabel}
+          </p>
+        )}
 
         {/*
           Marquee. The list is rendered twice so the -50% loop has no visible jump; the
           second copy is hidden from assistive tech and the first is the real
           list. Pausing on hover means a reader can read a name.
         */}
-        <div className="mt-6 flex w-max marquee-track">
+        <div className={`flex w-max marquee-track ${partnersLabel ? "mt-6" : ""}`}>
           {[0, 1].map((copy) => (
             <ul
               key={copy}
@@ -259,10 +319,10 @@ function Home() {
             >
               {partners.map((p) => (
                 <li
-                  key={p}
+                  key={p.name}
                   className="whitespace-nowrap font-display text-sm font-semibold text-muted-foreground/75 transition-colors hover:text-primary md:text-base"
                 >
-                  {p}
+                  {p.name}
                 </li>
               ))}
             </ul>
@@ -284,7 +344,7 @@ function Home() {
       <section className="bg-secondary/60 py-16 md:py-24">
         <div className="mx-auto max-w-6xl px-5">
           <Reveal>
-            <SectionHeading title="Everything from the first question to the airport gate" />
+            <SectionHeading {...useCopy(homeServices)} />
             <div className="mt-10 grid gap-5 md:grid-cols-3">
               {services.map((s, i) => (
                 <div
@@ -309,11 +369,7 @@ function Home() {
       */}
       <section className="mx-auto max-w-5xl px-5 py-16 md:py-24">
         <Reveal>
-          <SectionHeading
-            eyebrow="How it works"
-            title="Six steps from your first question to the departure gate"
-            intro="You always know which step you are on, what we are waiting for, and what you need to bring next."
-          />
+          <SectionHeading {...useCopy(homeProcess)} />
         </Reveal>
 
         <Reveal as="ol" stagger className="relative mt-12 grid gap-6 sm:grid-cols-2">
@@ -338,7 +394,7 @@ function Home() {
         <div className="relative mx-auto max-w-6xl px-5">
           <Reveal className="max-w-2xl">
             <h2 className="font-display text-display-md font-bold text-ink-foreground">
-              Why students choose us
+              {useCopy(homeWhyUs).title}
             </h2>
           </Reveal>
           {/*
@@ -349,7 +405,7 @@ function Home() {
           */}
           <Reveal stagger className="mt-10 grid auto-rows-fr gap-5 md:grid-cols-2 lg:grid-cols-3">
             {advantages.map((a, i) => {
-              const Icon = advantageIcons[a.icon];
+              const Icon = advantageIcon(a.icon);
               const wide = i % 4 === 0 || i % 4 === 3;
               return (
                 <div
@@ -379,11 +435,7 @@ function Home() {
       <section className="mx-auto max-w-6xl px-5 py-16 md:py-24">
         <div className="grid gap-10 md:grid-cols-[1fr_1.3fr] md:items-center">
           <Reveal>
-            <SectionHeading
-              eyebrow="In-house classes"
-              title="Test preparation that moves your score"
-              intro="Batches capped at twelve, weekly full-length mocks and writing marked against the official band descriptors, for IELTS, PTE, Duolingo and JLPT Japanese, taught in the same building where your application is prepared."
-            />
+            <SectionHeading {...useCopy(homeTestPrep)} />
             <Link
               to="/test-preparation"
               className="press mt-6 inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-soft hover:-translate-y-0.5 hover:shadow-lift"
@@ -411,7 +463,7 @@ function Home() {
       <section className="bg-secondary/60 py-20 md:py-28">
         <div className="mx-auto max-w-6xl px-5">
           <Reveal className="flex flex-wrap items-end justify-between gap-4">
-            <SectionHeading eyebrow="Student stories" title="Offers, visas and new beginnings" />
+            <SectionHeading {...useCopy(homeStories)} />
             <Link
               to="/success-stories"
               className="link-sweep inline-flex items-center gap-2 text-sm font-semibold text-primary"
@@ -421,9 +473,9 @@ function Home() {
           </Reveal>
 
           <div className="mt-10">
-            {homeStories.length > 0 ? (
+            {shownStories.length > 0 ? (
               <Reveal stagger className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                {homeStories.map((story) => (
+                {shownStories.map((story) => (
                   <StoryCard key={story.id} story={story} />
                 ))}
               </Reveal>
@@ -454,7 +506,7 @@ function Home() {
       {/* Latest from the blog: shallow, because it is a pointer, not a chapter. */}
       <section className="mx-auto max-w-6xl px-5 py-14 md:py-20">
         <div className="flex flex-wrap items-end justify-between gap-4">
-          <SectionHeading title="From our blog" />
+          <SectionHeading {...useCopy(homeBlog)} />
           <Link
             to="/blog"
             className="link-sweep inline-flex items-center gap-2 text-sm font-semibold text-primary"
@@ -483,9 +535,11 @@ function Home() {
         <div className="mx-auto grid max-w-6xl gap-10 px-5 lg:grid-cols-[0.85fr_1.15fr]">
           <div className="lg:sticky lg:top-36 lg:self-start">
             <SectionHeading
-              eyebrow="Common questions"
-              title="The things every student asks us first"
-              intro={`Still unsure about something? Call ${site.phones[0]} or drop into the Bagbazar office. No appointment needed.`}
+              {...useCopy(homeFaqs, {
+                intro: phones[0]
+                  ? `Still unsure about something? Call ${phones[0]} or drop into the Bagbazar office. No appointment needed.`
+                  : "Still unsure about something? Drop into the Bagbazar office. No appointment needed.",
+              })}
             />
             <Link
               to="/contact"
@@ -503,10 +557,11 @@ function Home() {
         <Reveal>
           <CtaBand
             variant="panel"
-            title="Sit with a counsellor this week, free of cost"
-            intro="Visit us at Bagbazar-28, Kathmandu or call and we will map out your country, course and budget."
+            {...useCopy(homeCta)}
             primary={{ to: "/contact", label: "Book an appointment" }}
-            secondary={{ href: telHref(site.phones[1]), label: `Call ${site.phones[1]}` }}
+            {...(callNumber
+              ? { secondary: { href: telHref(callNumber), label: `Call ${callNumber}` } }
+              : {})}
           />
         </Reveal>
       </section>

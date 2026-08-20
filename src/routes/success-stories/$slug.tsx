@@ -5,10 +5,12 @@ import { CtaBand, SiteLayout } from "@/components/site/Chrome";
 import { StoryCard } from "@/components/site/ContentCards";
 import { Reveal } from "@/components/site/Reveal";
 import { RichText } from "@/components/site/RichText";
+import { storyCta, storyRelated } from "@/data/page-copy";
 import { fetchSuccessStories, fetchSuccessStory } from "@/lib/content-api";
 import { formatDate, initials, toPlainText } from "@/lib/content-utils";
 import { magneticProps } from "@/lib/pointer-effects";
-import { absoluteUrl, breadcrumbJsonLd } from "@/lib/seo";
+import { absoluteUrl, breadcrumbJsonLd, settingsFromMatches } from "@/lib/seo";
+import { useCopy } from "@/lib/use-site-content";
 
 export const Route = createFileRoute("/success-stories/$slug")({
   // Both fetches run in the loader so the related grid is in the server HTML.
@@ -21,9 +23,10 @@ export const Route = createFileRoute("/success-stories/$slug")({
     if (!story) throw notFound();
     return { story, allStories };
   },
-  head: ({ loaderData }) => {
+  head: ({ loaderData, matches }) => {
     const story = loaderData?.story;
     if (!story) return {};
+    const settings = settingsFromMatches(matches);
     const description =
       toPlainText(story.quote, 160) ||
       `${story.student_name}, ${story.course} at ${story.university}.`;
@@ -35,7 +38,7 @@ export const Route = createFileRoute("/success-stories/$slug")({
     return {
       meta: [
         {
-          title: `${story.student_name}, ${story.university}, ${story.country} | Star Global Vision`,
+          title: `${story.student_name}, ${story.university}, ${story.country} | ${settings.name}`,
         },
         { name: "description", content: description },
         { property: "og:title", content: `${story.student_name}, ${story.university}` },
@@ -90,6 +93,12 @@ function StoryNotFound() {
 
 function StoryDetail() {
   const { story, allStories } = Route.useLoaderData();
+  // Read here rather than in the rail, which only renders when there is another
+  // student to show. The first name is passed as the override so the heading
+  // keeps naming them even after somebody saves this block.
+  const relatedCopy = useCopy(storyRelated, {
+    title: `Students we placed alongside ${story.student_name.split(" ")[0]}`,
+  });
 
   const related = (() => {
     const others = allStories.filter((s) => s.slug !== story.slug);
@@ -205,8 +214,7 @@ function StoryDetail() {
           <Reveal className="mt-16">
             <CtaBand
               variant="quiet"
-              title="Ready to write your own story?"
-              intro="Free profile assessment, a realistic shortlist and documentation handled properly from the first day."
+              {...useCopy(storyCta)}
               primary={{ to: "/contact", label: "Book free counselling" }}
             />
           </Reveal>
@@ -217,9 +225,7 @@ function StoryDetail() {
         <section className="border-t border-border bg-secondary/50 py-16 md:py-20">
           <div className="mx-auto max-w-6xl px-5">
             <Reveal>
-              <h2 className="font-display text-2xl font-bold md:text-3xl">
-                Students we placed alongside {story.student_name.split(" ")[0]}
-              </h2>
+              <h2 className="font-display text-2xl font-bold md:text-3xl">{relatedCopy.title}</h2>
             </Reveal>
             <Reveal stagger className="mt-8 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {related.map((item) => (

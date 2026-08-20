@@ -1,15 +1,28 @@
 import { Link } from "@tanstack/react-router";
-import { AlertCircle, ImagePlus, Link2, Loader2, LogIn, Trash2, Upload } from "lucide-react";
+import {
+  AlertCircle,
+  Check,
+  Clipboard,
+  ImagePlus,
+  Link2,
+  Loader2,
+  LogIn,
+  Trash2,
+  Upload,
+} from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
-import { site } from "@/data/site";
+import schemaSql from "../../../supabase/remaining-tables.sql?raw";
 import {
   ACCEPT_ATTRIBUTE,
   MAX_UPLOAD_BYTES,
   formatBytes,
   uploadImage,
   validateImage,
+  type MediaFolder,
 } from "@/lib/storage";
+import { getSupabase, sqlEditorUrl } from "@/lib/supabase";
+import { useSettings } from "@/lib/use-site-content";
 
 const logo = "/logo.png";
 
@@ -20,6 +33,29 @@ const logo = "/logo.png";
 const fieldClass =
   "w-full rounded-xl border border-input bg-background px-4 py-2.5 text-sm outline-none transition-colors focus:border-primary/50 focus:ring-2 focus:ring-ring/30";
 
+/**
+ * The remaining-characters line under a length-limited field.
+ *
+ * Only appears once the value is most of the way to the limit. Shown from the
+ * first keystroke it would read as a demand for a certain length, which is not
+ * what the limit is for — several of these columns cap at 80 or 200 characters
+ * because that is what the design holds, and the whole point is that staff never
+ * meet the cap. When they do get close, a Postgres check constraint is waiting,
+ * so a count here is the difference between "3 characters left" and a raw
+ * `violates check constraint` after they press Save.
+ */
+function CharCount({ value, max }: { value: string; max: number }) {
+  const left = max - value.length;
+  if (left > Math.min(24, Math.floor(max / 4))) return null;
+  return (
+    <span
+      className={`text-xs ${left < 0 ? "font-medium text-destructive" : "text-muted-foreground"}`}
+    >
+      {left < 0 ? `${-left} character${left === -1 ? "" : "s"} too many` : `${left} left`}
+    </span>
+  );
+}
+
 export function TextField({
   label,
   value,
@@ -28,6 +64,7 @@ export function TextField({
   placeholder,
   required = false,
   hint,
+  max,
 }: {
   label: string;
   value: string;
@@ -36,6 +73,7 @@ export function TextField({
   placeholder?: string;
   required?: boolean;
   hint?: string;
+  max?: number;
 }) {
   return (
     <label className="grid gap-1.5">
@@ -48,10 +86,17 @@ export function TextField({
         value={value}
         required={required}
         placeholder={placeholder}
+        /* maxLength stops typing at the cap but not pasting past it in every
+           browser, which is why CharCount below counts down rather than
+           trusting it. */
+        {...(max === undefined ? {} : { maxLength: max })}
         onChange={(e) => onChange(e.target.value)}
         className={fieldClass}
       />
-      {hint && <span className="text-xs text-muted-foreground">{hint}</span>}
+      <span className="flex flex-wrap items-baseline justify-between gap-x-3">
+        {hint && <span className="text-xs text-muted-foreground">{hint}</span>}
+        {max !== undefined && <CharCount value={value} max={max} />}
+      </span>
     </label>
   );
 }
@@ -64,6 +109,7 @@ export function TextArea({
   placeholder,
   required = false,
   hint,
+  max,
 }: {
   label: string;
   value: string;
@@ -72,6 +118,7 @@ export function TextArea({
   placeholder?: string;
   required?: boolean;
   hint?: string;
+  max?: number;
 }) {
   return (
     <label className="grid gap-1.5">
@@ -84,10 +131,14 @@ export function TextArea({
         rows={rows}
         required={required}
         placeholder={placeholder}
+        {...(max === undefined ? {} : { maxLength: max })}
         onChange={(e) => onChange(e.target.value)}
         className={`${fieldClass} resize-y font-sans leading-relaxed`}
       />
-      {hint && <span className="text-xs text-muted-foreground">{hint}</span>}
+      <span className="flex flex-wrap items-baseline justify-between gap-x-3">
+        {hint && <span className="text-xs text-muted-foreground">{hint}</span>}
+        {max !== undefined && <CharCount value={value} max={max} />}
+      </span>
     </label>
   );
 }
@@ -171,7 +222,7 @@ export function ImageField({
   label: string;
   value: string | null;
   onChange: (value: string | null) => void;
-  folder: "blog" | "stories" | "team" | "countries";
+  folder: MediaFolder;
   hint?: string;
   aspect?: "video" | "square";
 }) {
@@ -382,6 +433,8 @@ export function ImageField({
 
 /** Centered card used by the login screen and the setup notice. */
 export function AdminShell({ children }: { children: ReactNode }) {
+  const { name } = useSettings();
+
   return (
     <div className="flex min-h-screen flex-col bg-secondary/40">
       <div className="surface-brand grid-glow">
@@ -390,7 +443,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
             <img src={logo} alt="" className="h-10 w-auto rounded-lg bg-ink-foreground p-1" />
             <span className="leading-tight">
               <span className="block font-display text-sm font-bold text-ink-foreground">
-                {site.name}
+                {name}
               </span>
               <span className="block text-[0.62rem] uppercase tracking-[0.16em] text-ink-foreground/60">
                 Content admin
@@ -436,6 +489,47 @@ export function Notice({
 }
 
 /* -------------------------------------------------------------------------- */
+/* List furniture                                                             */
+/* -------------------------------------------------------------------------- */
+
+/** Live/Draft badge. Shared by every list in /admin. */
+export function StatusPill({ published }: { published: boolean }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[0.65rem] font-bold uppercase tracking-wider ${
+        published ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"
+      }`}
+    >
+      <span
+        className={`size-1.5 rounded-full ${published ? "bg-accent" : "bg-muted-foreground"}`}
+      />
+      {published ? "Live" : "Draft"}
+    </span>
+  );
+}
+
+/** Placeholder rows while a list loads. */
+export function RowSkeleton() {
+  return (
+    <div className="grid gap-3">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <div key={i} className="h-24 animate-pulse rounded-2xl border border-border bg-card" />
+      ))}
+    </div>
+  );
+}
+
+/** Dashed panel shown when a list has nothing in it. */
+export function EmptyRow({ title, detail }: { title: string; detail: string }) {
+  return (
+    <div className="rounded-3xl border border-dashed border-border bg-card/60 px-6 py-16 text-center">
+      <h2 className="font-display text-lg font-semibold">{title}</h2>
+      <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">{detail}</p>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
 /* Login                                                                      */
 /* -------------------------------------------------------------------------- */
 
@@ -448,6 +542,7 @@ export function LoginCard({
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const { name } = useSettings();
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -469,7 +564,7 @@ export function LoginCard({
     >
       <h1 className="font-display text-2xl font-bold">Staff sign in</h1>
       <p className="mt-2 text-sm text-muted-foreground">
-        Manage blog posts and success stories for {site.name}.
+        Manage blog posts and success stories for {name}.
       </p>
 
       <div className="mt-7 grid gap-4">
@@ -502,6 +597,139 @@ export function LoginCard({
         </button>
       </div>
     </form>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Setup instructions when a table has not been created yet                    */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Shown in place of an error when one of the content tables is missing.
+ *
+ * This is a setup step, not a fault: `supabase/schema.sql` lives in the repo and
+ * nothing applies it automatically, so the tables exist in git and nowhere else
+ * until somebody runs the file. PostgREST's own wording for this — "Could not
+ * find the table in the schema cache" — sends people hunting for a caching bug,
+ * so the instructions replace it rather than sit underneath it.
+ *
+ * The public website is unaffected while this shows: every public read falls back
+ * to the built-in content, so visitors see the site as normal.
+ */
+export function MissingTableNotice({ table }: { table: string }) {
+  const [copied, setCopied] = useState(false);
+  const [polling, setPolling] = useState(false);
+  const [pollCount, setPollCount] = useState(0);
+
+  const handleSetup = async () => {
+    try {
+      await navigator.clipboard.writeText(schemaSql);
+      setCopied(true);
+      setPolling(true);
+    } catch {
+      setCopied(false);
+    }
+    if (sqlEditorUrl) window.open(sqlEditorUrl, "_blank");
+  };
+
+  useEffect(() => {
+    if (!polling) return;
+    const id = setInterval(async () => {
+      setPollCount((c) => c + 1);
+      const supabase = getSupabase();
+      if (!supabase) return;
+      try {
+        const { error } = await supabase
+          .from(table as "site_content" | "page_sections")
+          .select("id")
+          .limit(1);
+        if (!error) {
+          clearInterval(id);
+          window.location.reload();
+        }
+      } catch {
+        /* table still missing — keep polling */
+      }
+    }, 2500);
+    return () => clearInterval(id);
+  }, [polling, table]);
+
+  return (
+    <div className="rounded-3xl border border-dashed border-accent/50 bg-card px-6 py-10 md:px-10">
+      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-accent">
+        One-time setup
+      </p>
+      <h2 className="mt-3 font-display text-xl font-bold md:text-2xl">
+        This part of the database has not been created yet
+      </h2>
+      <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+        The <code className="rounded bg-secondary px-1.5 py-0.5 text-xs">{table}</code> table is
+        missing, so there is nothing here to edit yet. Your public website is running normally on
+        its built-in content — visitors see no difference, and nothing has been lost.
+      </p>
+
+      <div className="mt-7">
+        <button
+          onClick={handleSetup}
+          disabled={polling}
+          className="surface-brand press inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-semibold shadow-soft hover:-translate-y-0.5 hover:shadow-lift disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {polling ? (
+            <>
+              <Loader2 className="size-4 animate-spin" /> Waiting for tables…
+            </>
+          ) : copied ? (
+            <>
+              <Check className="size-4" /> SQL copied — paste it &amp; click Run
+            </>
+          ) : (
+            <>
+              <Clipboard className="size-4" /> Copy SQL &amp; Open Editor
+            </>
+          )}
+        </button>
+        {polling && (
+          <p className="mt-3 max-w-2xl text-xs text-muted-foreground">
+            {pollCount < 4
+              ? "Watching for the table — paste the SQL into the editor and click Run."
+              : "Still waiting — make sure you pressed Run in the SQL editor. This will auto-refresh once the table exists."}
+          </p>
+        )}
+        {!polling && (
+          <ol className="mt-7 grid max-w-2xl gap-4 text-sm leading-relaxed">
+            <li className="flex gap-3">
+              <span className="mt-0.5 inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-primary-soft text-xs font-bold text-primary">
+                1
+              </span>
+              <span>
+                Click the button above — the SQL for the missing tables is copied to your clipboard
+                and the Supabase SQL editor opens in a new tab.
+              </span>
+            </li>
+            <li className="flex gap-3">
+              <span className="mt-0.5 inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-primary-soft text-xs font-bold text-primary">
+                2
+              </span>
+              <span>
+                Paste (<kbd className="rounded bg-secondary px-1.5 py-0.5 text-xs">Ctrl+V</kbd>) into
+                the editor and press <strong>Run</strong>. It is safe to run on a database that already
+                has content — existing tables and rows are left alone.
+              </span>
+            </li>
+            <li className="flex gap-3">
+              <span className="mt-0.5 inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-primary-soft text-xs font-bold text-primary">
+                3
+              </span>
+              <span>
+                Come back here — this page will auto-refresh once the table is detected. Then use{" "}
+                <strong>Import all lists</strong> to copy the website's current wording in, ready to
+                edit.
+              </span>
+            </li>
+          </ol>
+        )}
+      </div>
+    </div>
   );
 }
 

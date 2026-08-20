@@ -6,33 +6,38 @@ import { PageHero, SectionHeading, SiteLayout } from "@/components/site/Chrome";
 import { BlogCard, EmptyState, FilterPills } from "@/components/site/ContentCards";
 import { Counter } from "@/components/site/Counter";
 import { Reveal } from "@/components/site/Reveal";
+import { blogHero, blogTopics } from "@/data/page-copy";
 import { fetchBlogPosts } from "@/lib/content-api";
-import { absoluteUrl, defaultOgImage } from "@/lib/seo";
+import { absoluteUrl, settingsFromMatches } from "@/lib/seo";
+import { useCopy } from "@/lib/use-site-content";
 
 export const Route = createFileRoute("/blog/")({
   // Loading in the loader rather than useQuery, so the grid renders in the initial
   // HTML instead of appearing only after client hydration.
   loader: () => fetchBlogPosts(),
-  head: () => ({
-    meta: [
-      { title: "Study Abroad Blog: Visa, Test Prep & Scholarship Guides | Star Global Vision" },
-      {
-        name: "description",
-        content:
-          "Practical study abroad guides for Nepali students: student visa documentation, IELTS and PTE strategy, scholarships, destination comparisons and student life.",
-      },
-      { property: "og:title", content: "Study Abroad Blog | Star Global Vision" },
-      {
-        property: "og:description",
-        content:
-          "Visa checklists, test preparation strategy, scholarship guides and destination comparisons from our Kathmandu counselling team.",
-      },
-      { property: "og:type", content: "website" },
-      { property: "og:url", content: absoluteUrl("/blog") },
-      { property: "og:image", content: defaultOgImage },
-    ],
-    links: [{ rel: "canonical", href: absoluteUrl("/blog") }],
-  }),
+  head: ({ matches }) => {
+    const settings = settingsFromMatches(matches);
+
+    return {
+      meta: [
+        { title: `Study Abroad Blog: Visa, Test Prep & Scholarship Guides | ${settings.name}` },
+        {
+          name: "description",
+          content:
+            "Practical study abroad guides for Nepali students: student visa documentation, IELTS and PTE strategy, scholarships, destination comparisons and student life.",
+        },
+        { property: "og:title", content: `Study Abroad Blog | ${settings.name}` },
+        {
+          property: "og:description",
+          content:
+            "Visa checklists, test preparation strategy, scholarship guides and destination comparisons from our Kathmandu counselling team.",
+        },
+        { property: "og:type", content: "website" },
+        { property: "og:url", content: absoluteUrl("/blog") },
+      ],
+      links: [{ rel: "canonical", href: absoluteUrl("/blog") }],
+    };
+  },
   component: BlogIndex,
 });
 
@@ -72,12 +77,7 @@ function BlogIndex() {
 
   return (
     <SiteLayout>
-      <PageHero
-        eyebrow="Blog & resources"
-        title="Guides written by the people who file the applications."
-        highlight={4}
-        intro="Visa documentation, test strategy, scholarships and destination comparisons, written by the counsellors and teachers who handle these files every day."
-      >
+      <PageHero {...useCopy(blogHero)} highlight={4}>
         <dl className="mt-10 grid max-w-lg grid-cols-2 gap-x-6 gap-y-6 sm:grid-cols-3">
           {heroStats.map((s) => (
             <div key={s.label}>
@@ -92,11 +92,7 @@ function BlogIndex() {
 
       <section className="mx-auto max-w-6xl px-5 py-14 md:py-20">
         <Reveal>
-          <SectionHeading
-            eyebrow="Browse by topic"
-            title="Find the guide for the stage you are at"
-            intro="Filter by topic, or search by keyword to go straight to the article that covers your question."
-          />
+          <SectionHeading {...useCopy(blogTopics)} />
         </Reveal>
 
         <div className="mt-8 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">

@@ -14,92 +14,87 @@ import {
 import { useState } from "react";
 
 import { PageHero, SiteLayout } from "@/components/site/Chrome";
-import { site, telHref, tests } from "@/data/site";
+import { testsSpec, visitNotesSpec } from "@/data/collections";
+import { contactForm, contactHero, contactWhatsapp } from "@/data/page-copy";
+import { sitePhones, telHref } from "@/data/site";
 import { submitEnquiry } from "@/lib/content-api";
-import { absoluteUrl, defaultOgImage } from "@/lib/seo";
+import { absoluteUrl, defaultOgImage, settingsFromMatches } from "@/lib/seo";
 import { useCountries } from "@/lib/use-countries";
+import { useCollection, useCopy, useSettings } from "@/lib/use-site-content";
 
 export const Route = createFileRoute("/contact")({
-  head: () => ({
-    meta: [
-      { title: "Contact Star Global Vision, Bagbazar-28, Kathmandu" },
-      {
-        name: "description",
-        content:
-          "Visit Star Global Vision Educational Consultancy at Bagbazar-28, Kathmandu. Call 977-01-5364635 or email starglobalvision@gmail.com for free counselling.",
-      },
-      { property: "og:title", content: "Contact Star Global Vision Educational Consultancy" },
-      {
-        property: "og:description",
-        content:
-          "Free study abroad counselling in Bagbazar, Kathmandu. Phone, email and office hours.",
-      },
-      { property: "og:type", content: "article" },
-      { property: "og:url", content: absoluteUrl("/contact") },
-      { property: "og:image", content: defaultOgImage },
-    ],
-    links: [{ rel: "canonical", href: absoluteUrl("/contact") }],
-    scripts: [
-      {
-        type: "application/ld+json",
-        children: JSON.stringify({
-          "@context": "https://schema.org",
-          "@type": "LocalBusiness",
-          name: site.legalName,
-          url: absoluteUrl("/contact"),
-          image: defaultOgImage,
-          email: site.email,
-          telephone: site.phones,
-          sameAs: [site.facebook],
-          address: {
-            "@type": "PostalAddress",
-            streetAddress: "Bagbazar-28",
-            addressLocality: "Kathmandu",
-            addressCountry: "NP",
-          },
-          openingHoursSpecification: [
-            {
-              "@type": "OpeningHoursSpecification",
-              dayOfWeek: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-              opens: "07:00",
-              closes: "18:00",
+  head: ({ matches }) => {
+    const settings = settingsFromMatches(matches);
+    const phones = sitePhones(settings);
+
+    return {
+      meta: [
+        { title: `Contact ${settings.name}, ${settings.address}` },
+        {
+          name: "description",
+          content: `Visit ${settings.legal_name} at ${settings.address}. Call ${
+            phones[0] ?? settings.email
+          } or email ${settings.email} for free counselling.`,
+        },
+        { property: "og:title", content: `Contact ${settings.legal_name}` },
+        {
+          property: "og:description",
+          content:
+            "Free study abroad counselling in Bagbazar, Kathmandu. Phone, email and office hours.",
+        },
+        { property: "og:type", content: "article" },
+        { property: "og:url", content: absoluteUrl("/contact") },
+      ],
+      links: [{ rel: "canonical", href: absoluteUrl("/contact") }],
+      scripts: [
+        {
+          type: "application/ld+json",
+          children: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "LocalBusiness",
+            name: settings.legal_name,
+            url: absoluteUrl("/contact"),
+            image: defaultOgImage,
+            email: settings.email,
+            telephone: phones,
+            sameAs: settings.facebook ? [settings.facebook] : [],
+            address: {
+              "@type": "PostalAddress",
+              streetAddress: "Bagbazar-28",
+              addressLocality: "Kathmandu",
+              addressCountry: "NP",
             },
-          ],
-        }),
-      },
-    ],
-  }),
+            openingHoursSpecification: [
+              {
+                "@type": "OpeningHoursSpecification",
+                dayOfWeek: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+                opens: "07:00",
+                closes: "18:00",
+              },
+            ],
+          }),
+        },
+      ],
+    };
+  },
   component: Contact,
 });
 
-/** Practical notes for a first visit: the questions we field most on the phone. */
-const visitNotes = [
-  {
-    title: "No appointment needed",
-    detail:
-      "Walk in during office hours and a counsellor will see you. Booking ahead just means less waiting during the busy intake months.",
-  },
-  {
-    title: "What to bring",
-    detail:
-      "Your academic transcripts and certificates, citizenship or passport, and any IELTS, PTE or Duolingo score you already have. Photocopies are fine for a first session.",
-  },
-  {
-    title: "Counselling is free",
-    detail:
-      "Profile assessment, country shortlisting and course advice cost nothing. You only pay official university, test and government fees, always shown to you in writing first.",
-  },
-];
-
 function Contact() {
+  const settings = useSettings();
+  const phones = sitePhones(settings);
+  const visitNotes = useCollection(visitNotesSpec);
+  // Read up here rather than at the call site, because the card it belongs to
+  // only renders when a WhatsApp number is set, and a hook inside a conditional
+  // would run in a different order the moment somebody clears that field.
+  const whatsapp = useCopy(contactWhatsapp);
+  // The Facebook card shows the URL without its scheme, which is how people read
+  // a page name back to you.
+  const facebookLabel = settings.facebook.replace(/^https?:\/\//, "").replace(/\/+$/, "");
+
   return (
     <SiteLayout>
-      <PageHero
-        eyebrow="Contact"
-        title="Come in for a free counselling session."
-        highlight={3}
-        intro="Walk into our Bagbazar-28 office, call us, or send an enquiry. We usually reply the same working day."
-      />
+      <PageHero {...useCopy(contactHero)} highlight={3} />
 
       {/*
         Nothing on this page animates in. It is a page people arrive at with a
@@ -110,53 +105,64 @@ function Contact() {
         <div className="grid gap-8 md:grid-cols-[1fr_1.1fr]">
           <div className="space-y-3">
             <InfoCard icon={<MapPin className="size-5 text-primary" />} title="Office">
-              {site.address}
+              {settings.address}
             </InfoCard>
-            <InfoCard icon={<Phone className="size-5 text-primary" />} title="Phone">
-              <div className="flex flex-col gap-1">
-                {site.phones.map((p) => (
-                  <a key={p} href={telHref(p)} className="link-sweep w-fit hover:text-primary">
-                    {p}
-                  </a>
-                ))}
-              </div>
-            </InfoCard>
-            <InfoCard icon={<Mail className="size-5 text-primary" />} title="Email">
-              <a href={`mailto:${site.email}`} className="link-sweep w-fit hover:text-primary">
-                {site.email}
-              </a>
-            </InfoCard>
-            <InfoCard icon={<Facebook className="size-5 text-primary" />} title="Facebook">
-              <a
-                href={site.facebook}
-                target="_blank"
-                rel="noreferrer"
-                className="link-sweep w-fit hover:text-primary"
-              >
-                fb.com/starglobalvision
-              </a>
-            </InfoCard>
+            {phones.length > 0 && (
+              <InfoCard icon={<Phone className="size-5 text-primary" />} title="Phone">
+                <div className="flex flex-col gap-1">
+                  {phones.map((p) => (
+                    <a key={p} href={telHref(p)} className="link-sweep w-fit hover:text-primary">
+                      {p}
+                    </a>
+                  ))}
+                </div>
+              </InfoCard>
+            )}
+            {settings.email && (
+              <InfoCard icon={<Mail className="size-5 text-primary" />} title="Email">
+                <a
+                  href={`mailto:${settings.email}`}
+                  className="link-sweep w-fit hover:text-primary"
+                >
+                  {settings.email}
+                </a>
+              </InfoCard>
+            )}
+            {settings.facebook && (
+              <InfoCard icon={<Facebook className="size-5 text-primary" />} title="Facebook">
+                <a
+                  href={settings.facebook}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="link-sweep w-fit hover:text-primary"
+                >
+                  {facebookLabel}
+                </a>
+              </InfoCard>
+            )}
             <InfoCard icon={<Clock className="size-5 text-primary" />} title="Office hours">
-              {site.hours}
+              {settings.hours}
             </InfoCard>
 
             {/* The one loud element in this column, so it reads as the shortcut it is. */}
-            <a
-              href={`https://wa.me/${site.whatsapp}`}
-              target="_blank"
-              rel="noreferrer"
-              className="surface-brand press flex items-center gap-4 rounded-2xl p-6 shadow-soft hover:-translate-y-0.5 hover:shadow-lift"
-            >
-              <MessageCircle className="size-6 shrink-0 text-accent" />
-              <span>
-                <span className="block text-sm font-semibold text-ink-foreground">
-                  Prefer to message? Chat on WhatsApp
+            {settings.whatsapp && (
+              <a
+                href={`https://wa.me/${settings.whatsapp}`}
+                target="_blank"
+                rel="noreferrer"
+                className="surface-brand press flex items-center gap-4 rounded-2xl p-6 shadow-soft hover:-translate-y-0.5 hover:shadow-lift"
+              >
+                <MessageCircle className="size-6 shrink-0 text-accent" />
+                <span>
+                  <span className="block text-sm font-semibold text-ink-foreground">
+                    {whatsapp.title}
+                  </span>
+                  <span className="mt-0.5 block text-xs text-ink-foreground/70">
+                    {whatsapp.intro}
+                  </span>
                 </span>
-                <span className="mt-0.5 block text-xs text-ink-foreground/70">
-                  Quickest way to reach a counsellor outside office hours.
-                </span>
-              </span>
-            </a>
+              </a>
+            )}
           </div>
 
           <div className="h-fit">
@@ -179,8 +185,8 @@ function Contact() {
 
         <div className="mt-10 overflow-hidden rounded-2xl border border-border shadow-hair">
           <iframe
-            title="Star Global Vision office location in Bagbazar, Kathmandu"
-            src="https://www.google.com/maps?q=Bagbazar%2C%20Kathmandu%2C%20Nepal&output=embed"
+            title={`${settings.name} office location`}
+            src={`https://www.google.com/maps?q=${encodeURIComponent(settings.map_query)}&output=embed`}
             loading="lazy"
             referrerPolicy="no-referrer-when-downgrade"
             className="h-80 w-full border-0"
@@ -224,6 +230,16 @@ type EnquiryValues = ReturnType<typeof emptyEnquiry>;
  */
 function EnquiryForm() {
   const countries = useCountries();
+  const settings = useSettings();
+  // The class list the "which test?" dropdown offers, edited in /admin.
+  const tests = useCollection(testsSpec);
+  // Read before the `sent` branch below, which returns early: a hook after that
+  // return would be skipped on the render where somebody has just submitted.
+  const heading = useCopy(contactForm);
+  // The fallback the visitor is offered when the form itself cannot be submitted:
+  // the mobile if there is one, otherwise whichever number is set.
+  const fallbackPhones = sitePhones(settings);
+  const fallbackPhone = fallbackPhones[1] ?? fallbackPhones[0] ?? "";
   const blank = emptyEnquiry(countries[0]?.name ?? "Australia");
   const [values, setValues] = useState(blank);
   const [error, setError] = useState<string | null>(null);
@@ -267,7 +283,7 @@ function EnquiryForm() {
     } catch (err) {
       setError(
         err instanceof Error
-          ? `${err.message} You can also call ${site.phones[1]} or email ${site.email}.`
+          ? `${err.message} You can also call ${fallbackPhone} or email ${settings.email}.`
           : "Something went wrong. Please call us instead.",
       );
     } finally {
@@ -284,8 +300,8 @@ function EnquiryForm() {
         <h2 className="mt-5 font-display text-2xl font-bold">Enquiry received</h2>
         <p className="mx-auto mt-3 max-w-sm text-sm leading-relaxed text-muted-foreground">
           A counsellor will call you back, usually the same working day. If it is urgent, phone{" "}
-          <a href={telHref(site.phones[1] ?? "")} className="font-medium text-primary">
-            {site.phones[1]}
+          <a href={telHref(fallbackPhone)} className="font-medium text-primary">
+            {fallbackPhone}
           </a>{" "}
           or drop into the Bagbazar office.
         </p>
@@ -305,10 +321,8 @@ function EnquiryForm() {
       onSubmit={submit}
       className="gradient-border rounded-3xl border border-border bg-card p-8 shadow-soft"
     >
-      <h2 className="font-display text-2xl font-bold">Send an enquiry</h2>
-      <p className="mt-2 text-sm text-muted-foreground">
-        Tell us your destination and preferred course and a counsellor will get back to you.
-      </p>
+      <h2 className="font-display text-2xl font-bold">{heading.title}</h2>
+      <p className="mt-2 text-sm text-muted-foreground">{heading.intro}</p>
 
       <div className="mt-6 grid gap-4">
         <Field
@@ -409,12 +423,12 @@ function EnquiryForm() {
 
         <p className="text-xs leading-relaxed text-muted-foreground">
           Your details go straight to our counselling team and are never shared with anyone else.
-          Prefer to talk? Call {site.phones[1]} or email{" "}
+          Prefer to talk? Call {fallbackPhone} or email{" "}
           <a
-            href={`mailto:${site.email}`}
+            href={`mailto:${settings.email}`}
             className="font-medium text-primary underline underline-offset-2"
           >
-            {site.email}
+            {settings.email}
           </a>
           .
         </p>

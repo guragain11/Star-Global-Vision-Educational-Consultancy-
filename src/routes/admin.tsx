@@ -5,20 +5,38 @@ import {
   DownloadCloud,
   ExternalLink,
   Globe2,
+  GraduationCap,
   Inbox,
+  LayoutTemplate,
   Loader2,
   LogOut,
   Mail,
   Pencil,
   Phone,
   Plus,
+  Save,
+  Settings2,
   Trash2,
   Trophy,
+  Type,
   Users,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
-import { AdminShell, LoginCard, Notice, SetupNotice } from "@/components/admin/AdminUI";
+import {
+  AdminShell,
+  EmptyRow,
+  ImageField,
+  LoginCard,
+  MissingTableNotice,
+  Notice,
+  RowSkeleton,
+  SetupNotice,
+  StatusPill,
+  TextArea,
+  TextField,
+} from "@/components/admin/AdminUI";
+import { CollectionManager } from "@/components/admin/CollectionEditor";
 import {
   BlogEditor,
   CountryEditor,
@@ -29,9 +47,12 @@ import {
   type StoryDraft,
   type TeamDraft,
 } from "@/components/admin/Editors";
+import { PageCopyManager } from "@/components/admin/PageCopyEditor";
+import { pageCollections, testPrepCollections, type ErasedSpec } from "@/data/collections";
 import type { BlogPost, Country, SuccessStory, TeamMember } from "@/data/content";
-import { site, telHref } from "@/data/site";
+import { telHref, type SiteSettings } from "@/data/site";
 import {
+  adminGetSettings,
   adminListBlogPosts,
   adminListCountries,
   adminListEnquiries,
@@ -42,23 +63,54 @@ import {
   deleteEnquiry,
   deleteSuccessStory,
   deleteTeamMember,
+  importSeedCollections,
   importSeedCountries,
+  isMissingTable,
   saveBlogPost,
   saveCountry,
+  saveSettings,
   saveSuccessStory,
   saveTeamMember,
   updateEnquiry,
 } from "@/lib/content-api";
 import { formatDate } from "@/lib/content-utils";
+import { settingsFromMatches } from "@/lib/seo";
 import { enquiryStatuses, type Enquiry, type EnquiryStatus } from "@/lib/supabase";
 import { useAuth } from "@/lib/use-auth";
+import { useSettings } from "@/lib/use-site-content";
 
 const logo = "/logo.png";
 
+const tabs = [
+  { id: "blog", label: "Blog posts", icon: BookOpen },
+  { id: "stories", label: "Success stories", icon: Trophy },
+  { id: "countries", label: "Destinations", icon: Globe2 },
+  { id: "team", label: "Team", icon: Users },
+  { id: "enquiries", label: "Enquiries", icon: Inbox },
+  { id: "pages", label: "Page content", icon: LayoutTemplate },
+  { id: "test-prep", label: "Test Prep", icon: GraduationCap },
+  { id: "copy", label: "Headings & intros", icon: Type },
+  { id: "settings", label: "Site settings", icon: Settings2 },
+] as const;
+
+type Tab = (typeof tabs)[number]["id"];
+
+const isTab = (value: unknown): value is Tab => tabs.some((t) => t.id === value);
+
 export const Route = createFileRoute("/admin")({
-  head: () => ({
+  /*
+    The open tab lives in the URL rather than in component state. With nine
+    tabs, three of which have a picker inside them, a reload used to drop staff
+    back on Blog posts — and there was no way to send a colleague a link to the
+    list you were looking at. Anything unrecognised falls back to Blog rather
+    than erroring, so an old bookmark still opens the admin.
+  */
+  validateSearch: (search: Record<string, unknown>): { tab: Tab } => ({
+    tab: isTab(search["tab"]) ? search["tab"] : "blog",
+  }),
+  head: ({ matches }) => ({
     meta: [
-      { title: "Content Admin | Star Global Vision" },
+      { title: `Content admin | ${settingsFromMatches(matches).name}` },
       // Keep the admin out of search results.
       { name: "robots", content: "noindex, nofollow" },
     ],
@@ -96,10 +148,16 @@ function AdminPage() {
   return <Dashboard email={email} onSignOut={signOut} />;
 }
 
-type Tab = "blog" | "stories" | "countries" | "team" | "enquiries";
-
 function Dashboard({ email, onSignOut }: { email: string | null; onSignOut: () => Promise<void> }) {
-  const [tab, setTab] = useState<Tab>("blog");
+  const { tab } = Route.useSearch();
+  const navigate = Route.useNavigate();
+  const { name } = useSettings();
+
+  /*
+    Replace rather than push: these tabs are views of one page, not places you
+    have been. Pushing would mean nine presses of Back to leave /admin.
+  */
+  const setTab = (next: Tab) => void navigate({ search: { tab: next }, replace: true });
 
   // Shared with EnquiryManager through the query cache, so the badge and the
   // list are never out of step and only one request goes out.
@@ -112,12 +170,12 @@ function Dashboard({ email, onSignOut }: { email: string | null; onSignOut: () =
   return (
     <div className="flex min-h-screen flex-col bg-secondary/40">
       <header className="surface-brand grid-glow sticky top-0 z-40">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-5 py-4">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-5 py-4">
           <Link to="/" className="flex items-center gap-3">
             <img src={logo} alt="" className="h-10 w-auto rounded-lg bg-ink-foreground p-1" />
             <span className="leading-tight">
               <span className="block font-display text-sm font-bold text-ink-foreground">
-                {site.name}
+                {name}
               </span>
               <span className="block text-[0.62rem] uppercase tracking-[0.16em] text-ink-foreground/60">
                 Content admin
@@ -141,46 +199,76 @@ function Dashboard({ email, onSignOut }: { email: string | null; onSignOut: () =
             </button>
           </div>
         </div>
-
-        <div className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-5">
-          {(
-            [
-              { id: "blog", label: "Blog posts", icon: BookOpen, badge: 0 },
-              { id: "stories", label: "Success stories", icon: Trophy, badge: 0 },
-              { id: "countries", label: "Destinations", icon: Globe2, badge: 0 },
-              { id: "team", label: "Team", icon: Users, badge: 0 },
-              { id: "enquiries", label: "Enquiries", icon: Inbox, badge: unread },
-            ] as const
-          ).map((item) => (
-            <button
-              key={item.id}
-              onClick={() => setTab(item.id)}
-              aria-current={tab === item.id ? "page" : undefined}
-              className={`inline-flex shrink-0 items-center gap-2 rounded-t-xl px-5 py-3 text-sm font-semibold transition-colors ${
-                tab === item.id
-                  ? "bg-secondary/40 text-primary"
-                  : "text-ink-foreground/70 hover:bg-ink-foreground/10 hover:text-ink-foreground"
-              }`}
-            >
-              <item.icon className="size-4" />
-              {item.label}
-              {item.badge > 0 && (
-                <span className="surface-sun rounded-full px-2 py-0.5 text-[0.65rem] font-bold">
-                  {item.badge}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
       </header>
 
-      <main className="mx-auto w-full max-w-6xl flex-1 px-5 py-10">
-        {tab === "blog" && <BlogManager />}
-        {tab === "stories" && <StoryManager />}
-        {tab === "countries" && <CountryManager />}
-        {tab === "team" && <TeamManager />}
-        {tab === "enquiries" && <EnquiryManager />}
-      </main>
+      <div className="mx-auto flex w-full max-w-7xl flex-1 gap-0">
+        <nav className="sticky top-[73px] hidden w-56 shrink-0 self-start border-r border-border bg-card/60 py-4 lg:block">
+          <div className="grid gap-1 px-3">
+            {tabs.map((item) => {
+              const badge = item.id === "enquiries" ? unread : 0;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setTab(item.id)}
+                  aria-current={tab === item.id ? "page" : undefined}
+                  className={`flex items-center gap-3 rounded-xl px-4 py-2.5 text-left text-sm font-semibold transition-colors ${
+                    tab === item.id
+                      ? "bg-primary-soft text-primary"
+                      : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                  }`}
+                >
+                  <item.icon className="size-4 shrink-0" />
+                  <span className="flex-1">{item.label}</span>
+                  {badge > 0 && (
+                    <span className="surface-sun rounded-full px-2 py-0.5 text-[0.65rem] font-bold">
+                      {badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </nav>
+
+        {/* Mobile tab bar */}
+        <div className="flex gap-1 overflow-x-auto border-b border-border bg-card/60 px-5 py-2 lg:hidden">
+          {tabs.map((item) => {
+            const badge = item.id === "enquiries" ? unread : 0;
+            return (
+              <button
+                key={item.id}
+                onClick={() => setTab(item.id)}
+                aria-current={tab === item.id ? "page" : undefined}
+                className={`inline-flex shrink-0 items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
+                  tab === item.id
+                    ? "bg-primary-soft text-primary"
+                    : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                }`}
+              >
+                <item.icon className="size-4" />
+                {item.label}
+                {badge > 0 && (
+                  <span className="surface-sun rounded-full px-2 py-0.5 text-[0.65rem] font-bold">
+                    {badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        <main className="flex-1 px-6 py-10 lg:px-10">
+          {tab === "blog" && <BlogManager />}
+          {tab === "stories" && <StoryManager />}
+          {tab === "countries" && <CountryManager />}
+          {tab === "team" && <TeamManager />}
+          {tab === "enquiries" && <EnquiryManager />}
+          {tab === "pages" && <CollectionPicker specs={pageCollections} />}
+          {tab === "test-prep" && <CollectionPicker specs={testPrepCollections} />}
+          {tab === "copy" && <PageCopyManager />}
+          {tab === "settings" && <SettingsManager />}
+        </main>
+      </div>
     </div>
   );
 }
@@ -191,6 +279,7 @@ function Dashboard({ email, onSignOut }: { email: string | null; onSignOut: () =
 
 function BlogManager() {
   const queryClient = useQueryClient();
+  const router = useRouter();
   const [editing, setEditing] = useState<BlogPost | null | undefined>(undefined);
 
   const { data, isPending, error } = useQuery({
@@ -200,8 +289,14 @@ function BlogManager() {
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ["admin", "blog"] });
-    void queryClient.invalidateQueries({ queryKey: ["blog-posts"] });
     setEditing(undefined);
+    /*
+      The public blog reads its posts from a route loader, not a query — see the
+      loader in routes/blog/index.tsx — so invalidating the router is what pushes
+      a saved post out to the site. Without it a save showed here and nowhere
+      else until the next full page load.
+    */
+    void router.invalidate();
   };
 
   const save = useMutation({
@@ -330,6 +425,7 @@ function BlogManager() {
 
 function StoryManager() {
   const queryClient = useQueryClient();
+  const router = useRouter();
   const [editing, setEditing] = useState<SuccessStory | null | undefined>(undefined);
 
   const { data, isPending, error } = useQuery({
@@ -339,8 +435,9 @@ function StoryManager() {
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ["admin", "stories"] });
-    void queryClient.invalidateQueries({ queryKey: ["success-stories"] });
     setEditing(undefined);
+    // Same as the blog: the public rails come from route loaders, not queries.
+    void router.invalidate();
   };
 
   const save = useMutation({
@@ -481,6 +578,7 @@ function StoryManager() {
 
 function TeamManager() {
   const queryClient = useQueryClient();
+  const router = useRouter();
   const [editing, setEditing] = useState<TeamMember | null | undefined>(undefined);
 
   const { data, isPending, error } = useQuery({
@@ -490,8 +588,9 @@ function TeamManager() {
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ["admin", "team"] });
-    void queryClient.invalidateQueries({ queryKey: ["team-members"] });
     setEditing(undefined);
+    // The About page loads the team in its own loader, so the router has to know.
+    void router.invalidate();
   };
 
   const save = useMutation({
@@ -1058,6 +1157,9 @@ function EnquiryRow({
             value={notes}
             rows={2}
             disabled={busy}
+            /* Matches the check constraint on the column, so a long paste is
+               truncated at the box rather than rejected by Postgres. */
+            maxLength={4000}
             placeholder="What was discussed, what happens next"
             onChange={(e) => setNotes(e.target.value)}
             onBlur={() => notes !== enquiry.notes && onNotes(notes)}
@@ -1081,33 +1183,390 @@ function EnquiryRow({
 }
 
 /* -------------------------------------------------------------------------- */
-/* Small shared pieces                                                        */
+/* Page content (the editable lists)                                          */
 /* -------------------------------------------------------------------------- */
 
-function StatusPill({ published }: { published: boolean }) {
+/**
+ * A group of related lists behind one tab, with a pill picker across the top.
+ *
+ * A picker rather than a tab each: the thirteen lists are two jobs — the
+ * marketing pages, and the Test Prep page — and thirteen more tabs across the
+ * header would push the ones staff use daily off the edge of the screen.
+ */
+function CollectionPicker({ specs }: { specs: ErasedSpec[] }) {
+  const [id, setId] = useState(specs[0]?.id ?? "");
+  const spec = specs.find((s) => s.id === id) ?? specs[0];
+
+  const queryClient = useQueryClient();
+  const router = useRouter();
+
+  /*
+    Imports every list behind this tab in one press, for the initial setup —
+    otherwise getting the site's own content into the database means visiting
+    nine lists here and four on Test Prep and pressing Import in each.
+
+    Collections that already have rows are skipped rather than duplicated, so
+    this is safe to press again after adding a list, and safe to press twice by
+    accident.
+  */
+  const importAll = useMutation({
+    mutationFn: () => importSeedCollections(specs),
+    onSuccess: () => {
+      // Every list in the group, not just the open one: the others were imported
+      // too and their cached row counts are now wrong.
+      void queryClient.invalidateQueries({ queryKey: ["admin", "content"] });
+      // Pushes the imported copy out to the public pages, which read these lists
+      // from the root loader rather than from a query.
+      void router.invalidate();
+    },
+  });
+
+  if (!spec) return null;
+
+  const totalItems = specs.reduce((sum, item) => sum + item.seed.length, 0);
+
   return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[0.65rem] font-bold uppercase tracking-wider ${
-        published ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"
-      }`}
-    >
-      <span
-        className={`size-1.5 rounded-full ${published ? "bg-accent" : "bg-muted-foreground"}`}
-      />
-      {published ? "Live" : "Draft"}
-    </span>
+    <>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-2">
+          {specs.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => setId(item.id)}
+              aria-current={item.id === spec.id ? "true" : undefined}
+              className={`press rounded-full border px-4 py-2 text-sm font-semibold transition-colors ${
+                item.id === spec.id
+                  ? "border-primary bg-primary-soft text-primary"
+                  : "border-border bg-card text-muted-foreground hover:border-primary/40 hover:text-primary"
+              }`}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+
+        <button
+          onClick={() => importAll.mutate()}
+          disabled={importAll.isPending}
+          title={`Copy all ${totalItems} items from the live website into the database, across every list on this tab`}
+          className="press inline-flex items-center gap-2 rounded-full border border-border px-4 py-2 text-xs font-semibold text-muted-foreground hover:border-primary/40 hover:text-primary disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {importAll.isPending ? (
+            <Loader2 className="size-3.5 animate-spin" />
+          ) : (
+            <DownloadCloud className="size-3.5" />
+          )}
+          Import all {specs.length} lists
+        </button>
+      </div>
+
+      {(importAll.data || importAll.error) && (
+        <div className="mt-4">
+          {importAll.error ? (
+            isMissingTable(importAll.error) ? (
+              <MissingTableNotice table={importAll.error.table} />
+            ) : (
+              <Notice tone="error">{(importAll.error as Error).message}</Notice>
+            )
+          ) : importAll.data ? (
+            <Notice tone={importAll.data.collections > 0 ? "success" : "info"}>
+              {importAll.data.collections > 0
+                ? `Imported ${importAll.data.items} items across ${importAll.data.collections} list${
+                    importAll.data.collections === 1 ? "" : "s"
+                  }. Nothing on the site changed — the words are now yours to edit.`
+                : "Every list on this tab already has content, so nothing was imported."}
+            </Notice>
+          ) : null}
+        </div>
+      )}
+
+      <div className="mt-8">
+        {/* Keyed, so switching lists starts fresh rather than reusing the open form. */}
+        <CollectionManager key={spec.id} spec={spec} />
+      </div>
+    </>
   );
 }
 
-function RowSkeleton() {
+/* -------------------------------------------------------------------------- */
+/* Site settings                                                              */
+/* -------------------------------------------------------------------------- */
+
+function SettingsManager() {
+  const queryClient = useQueryClient();
+  const router = useRouter();
+
+  const { data, isPending, error } = useQuery({
+    queryKey: ["admin", "settings"],
+    queryFn: adminGetSettings,
+  });
+
+  const save = useMutation({
+    mutationFn: saveSettings,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["admin", "settings"] });
+      /*
+        The top bar, the footer, the contact page and every page's JSON-LD read
+        these through the root route loader rather than a query, because they
+        render on every route and cannot wait. Invalidating the router is what
+        pushes a change out to all of them, same as the destinations tab.
+      */
+      void router.invalidate();
+    },
+  });
+
   return (
-    <div className="grid gap-3">
-      {Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} className="h-24 animate-pulse rounded-2xl border border-border bg-card" />
-      ))}
-    </div>
+    <>
+      <div>
+        <h1 className="font-display text-2xl font-bold">Site settings</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Your contact details, mission and search listing. Unlike the other tabs, this is not a
+          list — it is the one set of details that appears on every page of the site.
+        </p>
+      </div>
+
+      <div className="mt-8">
+        {error ? (
+          isMissingTable(error) ? (
+            <MissingTableNotice table={error.table} />
+          ) : (
+            <Notice tone="error">{(error as Error).message}</Notice>
+          )
+        ) : isPending ? (
+          <div className="h-[32rem] animate-pulse rounded-3xl border border-border bg-card" />
+        ) : (
+          <SettingsForm initial={data} onSave={(next) => save.mutateAsync(next)} />
+        )}
+      </div>
+    </>
   );
 }
+
+/** One titled group of fields within the settings form. */
+function SettingsGroup({
+  title,
+  detail,
+  children,
+}: {
+  title: string;
+  detail: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="grid gap-5 rounded-3xl border border-border bg-card p-6 shadow-soft md:p-8">
+      <div>
+        <h2 className="font-display text-lg font-bold">{title}</h2>
+        <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{detail}</p>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+/**
+ * Every field on the site's single settings row.
+ *
+ * Clearing an optional field removes the thing it feeds rather than leaving a
+ * dead link — no Facebook URL means no Facebook icon, no second number means
+ * one number in the footer. The four fields marked required are the ones where
+ * blank has no sensible meaning, and a blank there falls back to the built-in
+ * default rather than shipping an empty page title.
+ */
+function SettingsForm({
+  initial,
+  onSave,
+}: {
+  initial: SiteSettings;
+  onSave: (settings: SiteSettings) => Promise<void>;
+}) {
+  const [draft, setDraft] = useState<SiteSettings>(initial);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  const set = <K extends keyof SiteSettings>(key: K, value: SiteSettings[K]) => {
+    setDraft((current) => ({ ...current, [key]: value }));
+    // Any further edit makes the confirmation below stale.
+    setSaved(false);
+  };
+
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError(null);
+    setBusy(true);
+    try {
+      await onSave(draft);
+      setSaved(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save the settings.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <form onSubmit={submit} className="grid gap-6">
+      <SettingsGroup
+        title="The business"
+        detail="The short name goes in the header, the footer and the browser tab. The full legal name signs the footer and identifies you to Google."
+      >
+        <div className="grid gap-5 md:grid-cols-2">
+          <TextField
+            label="Short name"
+            value={draft.name}
+            onChange={(v) => set("name", v)}
+            placeholder="Star Global Vision"
+            required
+          />
+          <TextField
+            label="Full legal name"
+            value={draft.legal_name}
+            onChange={(v) => set("legal_name", v)}
+            placeholder="Star Global Vision Educational Consultancy"
+            required
+          />
+        </div>
+        <TextArea
+          label="Mission statement"
+          value={draft.mission}
+          onChange={(v) => set("mission", v)}
+          rows={5}
+          hint="Quoted in full on the About page and in the footer."
+        />
+        <TextField
+          label="Approval line"
+          value={draft.approval}
+          onChange={(v) => set("approval", v)}
+          placeholder="Approved by Ministry of Social Development"
+          hint="Your accreditation, shown as a badge on the home page and the About page."
+        />
+      </SettingsGroup>
+
+      <SettingsGroup
+        title="How students reach you"
+        detail="Clearing any of these removes it from the site rather than leaving a link that goes nowhere."
+      >
+        <div className="grid gap-5 md:grid-cols-2">
+          <TextField
+            label="Landline"
+            type="tel"
+            value={draft.phone_primary}
+            onChange={(v) => set("phone_primary", v)}
+            placeholder="977-01-5364635"
+            hint="Shown in the top bar. Written however you like — the dial link strips the punctuation."
+          />
+          <TextField
+            label="Mobile"
+            type="tel"
+            value={draft.phone_secondary}
+            onChange={(v) => set("phone_secondary", v)}
+            placeholder="977-9841902452"
+            hint="The number the Call button dials on a phone. Leave blank to use the landline."
+          />
+        </div>
+        <div className="grid gap-5 md:grid-cols-2">
+          <TextField
+            label="Email"
+            type="email"
+            value={draft.email}
+            onChange={(v) => set("email", v)}
+            placeholder="starglobalvision@gmail.com"
+          />
+          <TextField
+            label="WhatsApp number"
+            value={draft.whatsapp}
+            onChange={(v) => set("whatsapp", v)}
+            placeholder="9779841902452"
+            hint="Digits only, starting with the country code. Powers the floating WhatsApp button."
+          />
+        </div>
+        <div className="grid gap-5 md:grid-cols-2">
+          <TextField
+            label="Office address"
+            value={draft.address}
+            onChange={(v) => set("address", v)}
+            placeholder="Bagbazar-28, Kathmandu, Nepal"
+          />
+          <TextField
+            label="Opening hours"
+            value={draft.hours}
+            onChange={(v) => set("hours", v)}
+            placeholder="Sunday - Friday, 7:00 AM - 6:00 PM"
+          />
+        </div>
+        <div className="grid gap-5 md:grid-cols-2">
+          <TextField
+            label="Facebook page"
+            type="url"
+            value={draft.facebook}
+            onChange={(v) => set("facebook", v)}
+            placeholder="https://fb.com/starglobalvision"
+            hint="The full URL, including https://"
+          />
+          <TextField
+            label="Map location"
+            value={draft.map_query}
+            onChange={(v) => set("map_query", v)}
+            placeholder="Bagbazar, Kathmandu, Nepal"
+            hint="Searched on Google Maps for the map on the contact page. A place name works better than coordinates."
+          />
+        </div>
+      </SettingsGroup>
+
+      <SettingsGroup
+        title="Search engines and sharing"
+        detail="What Google lists and what Facebook shows when someone shares a page that has no picture of its own."
+      >
+        <TextField
+          label="Default page title"
+          value={draft.seo_title}
+          onChange={(v) => set("seo_title", v)}
+          placeholder="Star Global Vision Educational Consultancy"
+          required
+          hint="Used on the home page and anywhere without its own title. Keep it under about 60 characters."
+        />
+        <TextArea
+          label="Default description"
+          value={draft.seo_description}
+          onChange={(v) => set("seo_description", v)}
+          rows={3}
+          required
+          hint="The grey paragraph under your name in Google results. Around 150 characters reads best."
+        />
+        <ImageField
+          label="Sharing image"
+          value={draft.og_image}
+          onChange={(v) => set("og_image", v)}
+          folder="site"
+          hint="Shown when a page is shared on Facebook, Viber or WhatsApp. Landscape, at least 1200×630. Falls back to the site logo card."
+        />
+      </SettingsGroup>
+
+      {error && <Notice tone="error">{error}</Notice>}
+      {saved && (
+        <Notice tone="success">Saved. The change is live on the site — go and have a look.</Notice>
+      )}
+
+      <div className="flex items-center gap-3">
+        <button
+          type="submit"
+          disabled={busy}
+          className="surface-brand inline-flex items-center gap-2 rounded-full px-6 py-2.5 text-sm font-semibold shadow-soft transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {busy ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+          Save changes
+        </button>
+        <span className="text-xs text-muted-foreground">
+          There is nothing to publish — these details are live as soon as you save.
+        </span>
+      </div>
+    </form>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Small shared pieces                                                        */
+/* -------------------------------------------------------------------------- */
 
 function CardSkeletonGrid() {
   return (
@@ -1126,15 +1585,6 @@ function CardSkeletonGrid() {
           </div>
         </div>
       ))}
-    </div>
-  );
-}
-
-function EmptyRow({ title, detail }: { title: string; detail: string }) {
-  return (
-    <div className="rounded-3xl border border-dashed border-border bg-card/60 px-6 py-16 text-center">
-      <h2 className="font-display text-lg font-semibold">{title}</h2>
-      <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">{detail}</p>
     </div>
   );
 }

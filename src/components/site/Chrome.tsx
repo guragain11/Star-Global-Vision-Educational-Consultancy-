@@ -23,10 +23,12 @@ import {
   X,
 } from "lucide-react";
 
-import { exams } from "@/data/exams";
-import { site, telHref } from "@/data/site";
+import { examsSpec } from "@/data/collections";
+import { examAnchor } from "@/data/exams";
+import { sitePhones, telHref } from "@/data/site";
 import { magneticProps } from "@/lib/pointer-effects";
 import { useCountries } from "@/lib/use-countries";
+import { useCollection, useSettings } from "@/lib/use-site-content";
 import { useTheme } from "@/lib/use-theme";
 
 import { SplitWords } from "./SplitWords";
@@ -52,15 +54,25 @@ const nav = [
 type SitePath = (typeof nav)[number]["to"];
 
 export function Logo({ inverted = false }: { inverted?: boolean }) {
+  const settings = useSettings();
+  // "Star Global Vision Educational Consultancy" minus "Star Global Vision".
+  // The two lines are the trading name and the rest of the legal name, so
+  // deriving the second from the first keeps them consistent when either is
+  // edited, and falls back to the whole legal name if it does not start with the
+  // trading name.
+  const suffix = settings.legal_name.startsWith(settings.name)
+    ? settings.legal_name.slice(settings.name.length).trim()
+    : settings.legal_name;
+
   return (
     <Link
       to="/"
       className="group flex shrink-0 items-center gap-3"
-      aria-label={`${site.name} home`}
+      aria-label={`${settings.name} home`}
     >
       <img
         src={logo}
-        alt={`${site.legalName} logo`}
+        alt={`${settings.legal_name} logo`}
         width={447}
         height={447}
         className={`h-11 w-auto shrink-0 rounded-lg transition-transform duration-300 group-hover:scale-105 ${
@@ -73,15 +85,17 @@ export function Logo({ inverted = false }: { inverted?: boolean }) {
             inverted ? "text-ink-foreground" : "text-foreground"
           }`}
         >
-          Star Global Vision
+          {settings.name}
         </span>
-        <span
-          className={`block text-[0.62rem] font-semibold uppercase tracking-[0.16em] ${
-            inverted ? "text-ink-foreground/65" : "text-muted-foreground"
-          }`}
-        >
-          Educational Consultancy
-        </span>
+        {suffix && (
+          <span
+            className={`block text-[0.62rem] font-semibold uppercase tracking-[0.16em] ${
+              inverted ? "text-ink-foreground/65" : "text-muted-foreground"
+            }`}
+          >
+            {suffix}
+          </span>
+        )}
       </span>
     </Link>
   );
@@ -89,32 +103,39 @@ export function Logo({ inverted = false }: { inverted?: boolean }) {
 
 /** Slim utility bar above the header: contact details and approval badge. */
 function TopBar() {
+  const settings = useSettings();
+  const phones = sitePhones(settings);
+
   return (
     <div className="surface-brand hidden border-b border-ink-foreground/10 lg:block">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-6 px-5 py-2 text-xs">
         <p className="inline-flex items-center gap-1.5 text-ink-foreground/80">
           <BadgeCheck className="size-3.5 text-accent" />
-          {site.approval}
+          {settings.approval}
         </p>
         <div className="flex items-center gap-5 text-ink-foreground/80">
           <span className="inline-flex items-center gap-1.5">
             <Clock className="size-3.5 text-accent" />
-            {site.hours}
+            {settings.hours}
           </span>
-          <a
-            href={`mailto:${site.email}`}
-            className="inline-flex items-center gap-1.5 hover:text-ink-foreground"
-          >
-            <Mail className="size-3.5 text-accent" />
-            {site.email}
-          </a>
-          <a
-            href={telHref(site.phones[0])}
-            className="inline-flex items-center gap-1.5 hover:text-ink-foreground"
-          >
-            <Phone className="size-3.5 text-accent" />
-            {site.phones[0]}
-          </a>
+          {settings.email && (
+            <a
+              href={`mailto:${settings.email}`}
+              className="inline-flex items-center gap-1.5 hover:text-ink-foreground"
+            >
+              <Mail className="size-3.5 text-accent" />
+              {settings.email}
+            </a>
+          )}
+          {phones[0] && (
+            <a
+              href={telHref(phones[0])}
+              className="inline-flex items-center gap-1.5 hover:text-ink-foreground"
+            >
+              <Phone className="size-3.5 text-accent" />
+              {phones[0]}
+            </a>
+          )}
         </div>
       </div>
     </div>
@@ -316,11 +337,14 @@ function DestinationsMenu() {
 /**
  * Icon per exam, keyed on the slug.
  *
- * Each one points at what actually separates that test from the other three —
- * a real examiner, a machine score, sitting it at home, a different language —
- * rather than four interchangeable document icons. Lives here rather than in
+ * Each one points at what actually separates that test from the others — a real
+ * examiner, a machine score, sitting it at home, a different language — rather
+ * than four interchangeable document icons. Lives here rather than in
  * `data/exams.ts` so the data file stays free of React imports, matching how
  * the test-preparation page maps its own icons.
+ *
+ * An exam added in /admin has no entry and falls back to the mortarboard, which
+ * is why the slugs are keys here rather than a required field on the record.
  */
 const examIcons: Record<string, LucideIcon> = {
   ielts: Mic,
@@ -330,10 +354,11 @@ const examIcons: Record<string, LucideIcon> = {
 };
 
 /**
- * The four exams, reached from any page.
+ * Every exam, reached from any page.
  *
- * One column rather than the two the destinations use: there are four entries,
- * and the full names ("Duolingo English Test") are too long to sit side by side.
+ * One column rather than the two the destinations use: there are only a handful
+ * of entries, and the full names ("Duolingo English Test") are too long to sit
+ * side by side.
  *
  * Rows link to the anchor for that exam on the single test-preparation page,
  * which is where the detail already lives — there are no per-exam routes, and
@@ -342,6 +367,7 @@ const examIcons: Record<string, LucideIcon> = {
  */
 function TestPrepMenu() {
   const { pathname } = useLocation();
+  const exams = useCollection(examsSpec);
 
   return (
     <HeaderMenu
@@ -354,13 +380,13 @@ function TestPrepMenu() {
       {(close) => (
         <>
           <ul className="grid gap-0.5">
-            {exams.map((e) => {
+            {exams.map((e, i) => {
               const Icon = examIcons[e.slug] ?? GraduationCap;
               return (
-                <li key={e.slug}>
+                <li key={i}>
                   <Link
                     to="/test-preparation"
-                    hash={e.slug}
+                    hash={examAnchor(e, i)}
                     onClick={close}
                     className={countryRowClass}
                   >
@@ -452,6 +478,8 @@ function MobileDestinations({ onNavigate }: { onNavigate: () => void }) {
 
 /** The same exams, collapsed by default inside the mobile menu. */
 function MobileTestPrep({ onNavigate }: { onNavigate: () => void }) {
+  const exams = useCollection(examsSpec);
+
   return (
     <MobileSection label="Test Prep">
       <li>
@@ -463,13 +491,13 @@ function MobileTestPrep({ onNavigate }: { onNavigate: () => void }) {
           All {exams.length} tests
         </Link>
       </li>
-      {exams.map((e) => {
+      {exams.map((e, i) => {
         const Icon = examIcons[e.slug] ?? GraduationCap;
         return (
-          <li key={e.slug}>
+          <li key={i}>
             <Link
               to="/test-preparation"
-              hash={e.slug}
+              hash={examAnchor(e, i)}
               onClick={onNavigate}
               className={countryRowClass}
             >
@@ -533,6 +561,11 @@ export function Header() {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [progress, setProgress] = useState(0);
+  const settings = useSettings();
+  // The mobile call button uses the mobile number when there is one, falling back
+  // to whatever single number the office has left set.
+  const phones = sitePhones(settings);
+  const callNumber = phones[1] ?? phones[0];
 
   useEffect(() => {
     const onScroll = () => {
@@ -618,13 +651,15 @@ export function Header() {
 
           <div className="flex items-center gap-2 lg:hidden">
             <ThemeToggle className="size-11" />
-            <a
-              href={telHref(site.phones[1])}
-              aria-label={`Call ${site.phones[1]}`}
-              className="press rounded-full border border-border p-2.5 text-primary"
-            >
-              <Phone className="size-4" />
-            </a>
+            {callNumber && (
+              <a
+                href={telHref(callNumber)}
+                aria-label={`Call ${callNumber}`}
+                className="press rounded-full border border-border p-2.5 text-primary"
+              >
+                <Phone className="size-4" />
+              </a>
+            )}
             <button
               onClick={() => setOpen((v) => !v)}
               aria-label={open ? "Close menu" : "Open menu"}
@@ -678,14 +713,18 @@ export function Header() {
               Book free counselling
             </Link>
             <div className="mt-4 grid gap-2 border-t border-border pt-4 text-sm text-muted-foreground">
-              <a href={telHref(site.phones[0])} className="inline-flex items-center gap-2">
-                <Phone className="size-4 text-accent" /> {site.phones[0]}
-              </a>
-              <a href={`mailto:${site.email}`} className="inline-flex items-center gap-2">
-                <Mail className="size-4 text-accent" /> {site.email}
-              </a>
+              {phones[0] && (
+                <a href={telHref(phones[0])} className="inline-flex items-center gap-2">
+                  <Phone className="size-4 text-accent" /> {phones[0]}
+                </a>
+              )}
+              {settings.email && (
+                <a href={`mailto:${settings.email}`} className="inline-flex items-center gap-2">
+                  <Mail className="size-4 text-accent" /> {settings.email}
+                </a>
+              )}
               <p className="inline-flex items-center gap-2">
-                <MapPin className="size-4 text-accent" /> {site.address}
+                <MapPin className="size-4 text-accent" /> {settings.address}
               </p>
             </div>
           </nav>
@@ -697,6 +736,8 @@ export function Header() {
 
 export function Footer() {
   const explore = nav.filter((n) => n.to !== "/");
+  const settings = useSettings();
+  const phones = sitePhones(settings);
 
   return (
     <footer className="surface-brand mt-24">
@@ -704,38 +745,44 @@ export function Footer() {
         <div className="lg:col-span-2">
           <Logo inverted />
           <p className="mt-5 max-w-sm text-sm leading-relaxed text-ink-foreground/70">
-            {site.mission}
+            {settings.mission}
           </p>
           <p className="mt-5 inline-flex items-center gap-2 rounded-full border border-ink-foreground/25 px-3 py-1.5 text-xs font-medium text-ink-foreground/85">
             <BadgeCheck className="size-4 text-accent" />
-            {site.approval}
+            {settings.approval}
           </p>
           <div className="mt-6 flex gap-3">
-            <a
-              href={site.facebook}
-              target="_blank"
-              rel="noreferrer"
-              aria-label="Star Global Vision on Facebook"
-              className="press rounded-full border border-ink-foreground/25 p-2.5 text-ink-foreground/80 hover:-translate-y-0.5 hover:border-accent/50 hover:bg-ink-foreground/10 hover:text-ink-foreground"
-            >
-              <Facebook className="size-4" />
-            </a>
-            <a
-              href={`https://wa.me/${site.whatsapp}`}
-              target="_blank"
-              rel="noreferrer"
-              aria-label="Chat with us on WhatsApp"
-              className="press rounded-full border border-ink-foreground/25 p-2.5 text-ink-foreground/80 hover:-translate-y-0.5 hover:border-accent/50 hover:bg-ink-foreground/10 hover:text-ink-foreground"
-            >
-              <MessageCircle className="size-4" />
-            </a>
-            <a
-              href={`mailto:${site.email}`}
-              aria-label="Email Star Global Vision"
-              className="press rounded-full border border-ink-foreground/25 p-2.5 text-ink-foreground/80 hover:-translate-y-0.5 hover:border-accent/50 hover:bg-ink-foreground/10 hover:text-ink-foreground"
-            >
-              <Mail className="size-4" />
-            </a>
+            {settings.facebook && (
+              <a
+                href={settings.facebook}
+                target="_blank"
+                rel="noreferrer"
+                aria-label={`${settings.name} on Facebook`}
+                className="press rounded-full border border-ink-foreground/25 p-2.5 text-ink-foreground/80 hover:-translate-y-0.5 hover:border-accent/50 hover:bg-ink-foreground/10 hover:text-ink-foreground"
+              >
+                <Facebook className="size-4" />
+              </a>
+            )}
+            {settings.whatsapp && (
+              <a
+                href={`https://wa.me/${settings.whatsapp}`}
+                target="_blank"
+                rel="noreferrer"
+                aria-label="Chat with us on WhatsApp"
+                className="press rounded-full border border-ink-foreground/25 p-2.5 text-ink-foreground/80 hover:-translate-y-0.5 hover:border-accent/50 hover:bg-ink-foreground/10 hover:text-ink-foreground"
+              >
+                <MessageCircle className="size-4" />
+              </a>
+            )}
+            {settings.email && (
+              <a
+                href={`mailto:${settings.email}`}
+                aria-label={`Email ${settings.name}`}
+                className="press rounded-full border border-ink-foreground/25 p-2.5 text-ink-foreground/80 hover:-translate-y-0.5 hover:border-accent/50 hover:bg-ink-foreground/10 hover:text-ink-foreground"
+              >
+                <Mail className="size-4" />
+              </a>
+            )}
           </div>
         </div>
 
@@ -764,9 +811,9 @@ export function Footer() {
           <ul className="mt-4 space-y-2.5 text-sm text-ink-foreground/80">
             <li className="flex items-start gap-2">
               <MapPin className="mt-0.5 size-4 shrink-0 text-accent" />
-              {site.address}
+              {settings.address}
             </li>
-            {site.phones.map((p) => (
+            {phones.map((p) => (
               <li key={p} className="flex items-start gap-2">
                 <Phone className="mt-0.5 size-4 shrink-0 text-accent" />
                 <a href={telHref(p)} className="transition-colors hover:text-ink-foreground">
@@ -774,18 +821,20 @@ export function Footer() {
                 </a>
               </li>
             ))}
-            <li className="flex items-start gap-2">
-              <Mail className="mt-0.5 size-4 shrink-0 text-accent" />
-              <a
-                href={`mailto:${site.email}`}
-                className="transition-colors hover:text-ink-foreground"
-              >
-                {site.email}
-              </a>
-            </li>
+            {settings.email && (
+              <li className="flex items-start gap-2">
+                <Mail className="mt-0.5 size-4 shrink-0 text-accent" />
+                <a
+                  href={`mailto:${settings.email}`}
+                  className="transition-colors hover:text-ink-foreground"
+                >
+                  {settings.email}
+                </a>
+              </li>
+            )}
             <li className="flex items-start gap-2">
               <Clock className="mt-0.5 size-4 shrink-0 text-accent" />
-              {site.hours}
+              {settings.hours}
             </li>
           </ul>
         </div>
@@ -794,7 +843,7 @@ export function Footer() {
       <div className="border-t border-ink-foreground/15">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-5 py-6 text-xs text-ink-foreground/60">
           <p>
-            © {new Date().getFullYear()} {site.legalName}. All rights reserved.
+            © {new Date().getFullYear()} {settings.legal_name}. All rights reserved.
           </p>
           <a
             href="https://drillthru.tech"
@@ -813,6 +862,7 @@ export function Footer() {
 /** Floating WhatsApp button plus a back-to-top control that appears on scroll. */
 function FloatingActions() {
   const [showTop, setShowTop] = useState(false);
+  const { whatsapp } = useSettings();
 
   useEffect(() => {
     const onScroll = () => setShowTop(window.scrollY > 600);
@@ -832,16 +882,18 @@ function FloatingActions() {
           <ArrowUp className="size-5" />
         </button>
       )}
-      <a
-        href={`https://wa.me/${site.whatsapp}`}
-        target="_blank"
-        rel="noreferrer"
-        aria-label="Chat with us on WhatsApp"
-        className="press group flex items-center gap-2 rounded-full bg-[#25D366] px-4 py-3.5 font-semibold text-white shadow-lift hover:-translate-y-0.5 hover:shadow-float"
-      >
-        <MessageCircle className="size-5 transition-transform duration-300 group-hover:rotate-12" />
-        <span className="hidden text-sm sm:inline">WhatsApp</span>
-      </a>
+      {whatsapp && (
+        <a
+          href={`https://wa.me/${whatsapp}`}
+          target="_blank"
+          rel="noreferrer"
+          aria-label="Chat with us on WhatsApp"
+          className="press group flex items-center gap-2 rounded-full bg-[#25D366] px-4 py-3.5 font-semibold text-white shadow-lift hover:-translate-y-0.5 hover:shadow-float"
+        >
+          <MessageCircle className="size-5 transition-transform duration-300 group-hover:rotate-12" />
+          <span className="hidden text-sm sm:inline">WhatsApp</span>
+        </a>
+      )}
     </div>
   );
 }
@@ -963,12 +1015,19 @@ export function SectionHeading({
  * gradient block would shout over the writing.
  */
 export function CtaBand({
+  eyebrow,
   title,
   intro,
   primary,
   secondary,
   variant = "band",
 }: {
+  /**
+   * Optional line above the heading. No CTA on the site uses one today, and the
+   * prop exists because the copy for these bands is edited in /admin: a block
+   * that offers an eyebrow box has to be able to render one.
+   */
+  eyebrow?: string;
   title: string;
   intro?: string;
   primary: { to: SitePath; label: string };
@@ -1021,7 +1080,10 @@ export function CtaBand({
       <div className="border-t border-border pt-10">
         <div className="flex flex-wrap items-end justify-between gap-6">
           <div className="max-w-lg">
-            <h2 className="font-display text-2xl font-bold md:text-3xl">{title}</h2>
+            {eyebrow && <p className="eyebrow">{eyebrow}</p>}
+            <h2 className={`font-display text-2xl font-bold md:text-3xl ${eyebrow ? "mt-3" : ""}`}>
+              {title}
+            </h2>
             {intro && <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{intro}</p>}
           </div>
           <div className="flex flex-wrap gap-3">{action}</div>
@@ -1035,7 +1097,12 @@ export function CtaBand({
     return (
       <div className="surface-brand relative overflow-hidden rounded-2xl px-7 py-10 shadow-lift md:px-12">
         <div className="relative max-w-2xl">
-          <h2 className="font-display text-2xl font-bold text-ink-foreground md:text-3xl">
+          {eyebrow && <p className="eyebrow text-ink-foreground/70">{eyebrow}</p>}
+          <h2
+            className={`font-display text-2xl font-bold text-ink-foreground md:text-3xl ${
+              eyebrow ? "mt-3" : ""
+            }`}
+          >
             {title}
           </h2>
           {intro && <p className="mt-3 text-sm leading-relaxed text-ink-foreground/75">{intro}</p>}
@@ -1047,7 +1114,12 @@ export function CtaBand({
 
   return (
     <div className="surface-brand grid-glow relative overflow-hidden rounded-4xl px-8 py-14 text-center shadow-float md:px-16">
-      <h2 className="relative mx-auto max-w-2xl font-display text-3xl font-bold text-ink-foreground md:text-4xl">
+      {eyebrow && <p className="eyebrow relative text-ink-foreground/70">{eyebrow}</p>}
+      <h2
+        className={`relative mx-auto max-w-2xl font-display text-3xl font-bold text-ink-foreground md:text-4xl ${
+          eyebrow ? "mt-3" : ""
+        }`}
+      >
         {title}
       </h2>
       {intro && (

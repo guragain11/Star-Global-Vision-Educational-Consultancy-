@@ -16,11 +16,20 @@ import { CtaBand, SiteLayout } from "@/components/site/Chrome";
 import { CountryCard, CoverFallback } from "@/components/site/ContentCards";
 import { Reveal } from "@/components/site/Reveal";
 import { RichText } from "@/components/site/RichText";
-import { site } from "@/data/site";
+import {
+  countryCta,
+  countryDisclaimer,
+  countryFacts,
+  countryOverview,
+  countryRelated,
+  countryRequirements,
+  countryUniversities,
+} from "@/data/page-copy";
 import { fetchCountries, fetchCountry } from "@/lib/content-api";
 import { toPlainText } from "@/lib/content-utils";
 import { magneticProps } from "@/lib/pointer-effects";
-import { absoluteUrl, breadcrumbJsonLd, defaultOgImage } from "@/lib/seo";
+import { absoluteUrl, breadcrumbJsonLd, settingsFromMatches } from "@/lib/seo";
+import { useCopy } from "@/lib/use-site-content";
 
 export const Route = createFileRoute("/countries/$slug")({
   // Both in the loader: head() below needs the country for per-page SEO, and the
@@ -33,16 +42,20 @@ export const Route = createFileRoute("/countries/$slug")({
     if (!country) throw notFound();
     return { country, allCountries };
   },
-  head: ({ loaderData }) => {
+  head: ({ loaderData, matches }) => {
     const c = loaderData?.country;
     if (!c) return {};
+    const settings = settingsFromMatches(matches);
 
-    const title = `Study in ${c.name} from Nepal | Star Global Vision`;
+    const title = `Study in ${c.name} from Nepal | ${settings.name}`;
+
     const description = c.blurb || toPlainText(c.overview, 160);
     const url = absoluteUrl(`/countries/${c.slug}`);
     // Seed images are local paths; uploads are already absolute Supabase URLs,
-    // and absoluteUrl leaves those alone.
-    const image = c.image ? absoluteUrl(c.image) : defaultOgImage;
+    // and absoluteUrl leaves those alone. Null when the destination has no photo,
+    // so the tag below is omitted and the root's editable og_image applies —
+    // hardcoding the fallback here would override whatever staff uploaded.
+    const image = c.image ? absoluteUrl(c.image) : null;
 
     return {
       meta: [
@@ -52,7 +65,7 @@ export const Route = createFileRoute("/countries/$slug")({
         { property: "og:description", content: description },
         { property: "og:type", content: "article" },
         { property: "og:url", content: url },
-        { property: "og:image", content: image },
+        ...(image ? [{ property: "og:image", content: image }] : []),
         { name: "twitter:card", content: "summary_large_image" },
       ],
       links: [{ rel: "canonical", href: url }],
@@ -76,7 +89,7 @@ export const Route = createFileRoute("/countries/$slug")({
             areaServed: { "@type": "Country", name: "Nepal" },
             provider: {
               "@type": "EducationalOrganization",
-              name: site.legalName,
+              name: settings.legal_name,
               url: absoluteUrl("/"),
             },
           }),
@@ -129,6 +142,19 @@ const sections = [
 
 function CountryDetail() {
   const { country: c, allCountries } = Route.useLoaderData();
+
+  // The four blocks below are hand-built rather than SectionHeading, because
+  // three of their headings name the destination, so they read from /admin here
+  // and pass the interpolated sentence as the override.
+  const factsCopy = useCopy(countryFacts);
+  const overviewCopy = useCopy(countryOverview, { title: `Studying in ${c.name}` });
+  const universitiesCopy = useCopy(countryUniversities);
+  const requirementsCopy = useCopy(countryRequirements, { title: `What ${c.name} asks of you` });
+  const disclaimer = useCopy(countryDisclaimer);
+  // Read here rather than in the rail, which only renders when there is another
+  // destination to suggest. A hook inside that guard would change position the
+  // first time somebody unpublished all but one.
+  const relatedCopy = useCopy(countryRelated);
 
   const others = allCountries.filter((x) => x.slug !== c.slug);
   // Same tier first, so a flagship destination suggests its peers rather than
@@ -260,9 +286,16 @@ function CountryDetail() {
         {/* At a glance: the numbers a student compares destinations on. */}
         <section id="at-a-glance" className="mx-auto max-w-6xl scroll-mt-32 px-5 py-14 md:py-20">
           <Reveal>
-            <p className="eyebrow">At a glance</p>
-            <h2 className="mt-3 font-display text-3xl font-bold md:text-4xl">
-              The numbers that decide it
+            {factsCopy.eyebrow && <p className="eyebrow">{factsCopy.eyebrow}</p>}
+            {/* Top margin only when there is an eyebrow to sit under, the same
+                way SectionHeading handles it: this is the first thing in the
+                section, so a cleared eyebrow would otherwise leave a gap. */}
+            <h2
+              className={`font-display text-3xl font-bold md:text-4xl ${
+                factsCopy.eyebrow ? "mt-3" : ""
+              }`}
+            >
+              {factsCopy.title}
             </h2>
           </Reveal>
 
@@ -289,9 +322,13 @@ function CountryDetail() {
           <div className="mx-auto grid max-w-6xl gap-10 px-5 lg:grid-cols-[1.35fr_1fr] lg:gap-14">
             <div id="overview" className="scroll-mt-32">
               <Reveal>
-                <p className="eyebrow">The full picture</p>
-                <h2 className="mt-3 font-display text-3xl font-bold md:text-4xl">
-                  Studying in {c.name}
+                {overviewCopy.eyebrow && <p className="eyebrow">{overviewCopy.eyebrow}</p>}
+                <h2
+                  className={`font-display text-3xl font-bold md:text-4xl ${
+                    overviewCopy.eyebrow ? "mt-3" : ""
+                  }`}
+                >
+                  {overviewCopy.title}
                 </h2>
               </Reveal>
               <Reveal delay={80} className="mt-7">
@@ -312,7 +349,7 @@ function CountryDetail() {
                 <span className="inline-flex size-10 items-center justify-center rounded-xl bg-accent-soft text-accent-foreground">
                   <GraduationCap className="size-5" />
                 </span>
-                <h2 className="mt-4 font-display text-xl font-bold">Popular universities</h2>
+                <h2 className="mt-4 font-display text-xl font-bold">{universitiesCopy.title}</h2>
                 {c.universities.length > 0 ? (
                   <>
                     <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
@@ -350,9 +387,15 @@ function CountryDetail() {
             <span className="inline-flex size-11 items-center justify-center rounded-2xl bg-primary-soft text-primary">
               <ScrollText className="size-5" />
             </span>
-            <p className="eyebrow mt-5">Entry and visa</p>
-            <h2 className="mt-3 font-display text-3xl font-bold md:text-4xl">
-              What {c.name} asks of you
+            {requirementsCopy.eyebrow && <p className="eyebrow mt-5">{requirementsCopy.eyebrow}</p>}
+            {/* Without an eyebrow the heading inherits its clearance from the
+                icon above, which is what the eyebrow's mt-5 was doing. */}
+            <h2
+              className={`font-display text-3xl font-bold md:text-4xl ${
+                requirementsCopy.eyebrow ? "mt-3" : "mt-5"
+              }`}
+            >
+              {requirementsCopy.title}
             </h2>
           </Reveal>
           <Reveal delay={80} className="mt-7">
@@ -366,19 +409,18 @@ function CountryDetail() {
             )}
           </Reveal>
 
-          <Reveal className="mt-11">
-            <p className="rounded-2xl border border-border bg-secondary/50 px-6 py-5 text-xs leading-relaxed text-muted-foreground">
-              Visa policy, fees and work rules change regularly. Everything above is what applies at
-              the time of writing; we confirm the current rules for your course and intake before
-              you pay anything or lodge an application.
-            </p>
-          </Reveal>
+          {disclaimer.intro && (
+            <Reveal className="mt-11">
+              <p className="rounded-2xl border border-border bg-secondary/50 px-6 py-5 text-xs leading-relaxed text-muted-foreground">
+                {disclaimer.intro}
+              </p>
+            </Reveal>
+          )}
 
           <aside className="mt-12">
             <CtaBand
               variant="quiet"
-              title={`Ready to look at ${c.name} properly?`}
-              intro="Bring your transcripts to the Bagbazar office for a free session. We will tell you which universities are realistic, what it will actually cost, and whether another destination would serve you better."
+              {...useCopy(countryCta, { title: `Ready to look at ${c.name} properly?` })}
               primary={{ to: "/contact", label: "Book free counselling" }}
               secondary={{ to: "/success-stories", label: "See where students went" }}
             />
@@ -391,7 +433,7 @@ function CountryDetail() {
         <section className="border-t border-border bg-secondary/50 py-16 md:py-20">
           <div className="mx-auto max-w-6xl px-5">
             <Reveal className="flex flex-wrap items-end justify-between gap-4">
-              <h2 className="font-display text-2xl font-bold md:text-3xl">Also worth comparing</h2>
+              <h2 className="font-display text-2xl font-bold md:text-3xl">{relatedCopy.title}</h2>
               <Link
                 to="/countries"
                 className="link-sweep inline-flex items-center gap-2 text-sm font-semibold text-primary"

@@ -7,15 +7,24 @@ import { CountryCard, EmptyState } from "@/components/site/ContentCards";
 import { Reveal } from "@/components/site/Reveal";
 import { Counter } from "@/components/site/Counter";
 import type { Country } from "@/data/content";
+import {
+  countriesChooser,
+  countriesCompare,
+  countriesCta,
+  countriesGrid,
+  countriesHero,
+} from "@/data/page-copy";
 import { fetchCountries } from "@/lib/content-api";
 import { capitalise, numberWord } from "@/lib/content-utils";
-import { absoluteUrl, defaultOgImage, itemListJsonLd } from "@/lib/seo";
+import { absoluteUrl, itemListJsonLd, settingsFromMatches } from "@/lib/seo";
+import { useCopy } from "@/lib/use-site-content";
 
 export const Route = createFileRoute("/countries/")({
   // Loaded here rather than in a hook so head() below can build the ItemList
   // JSON-LD from the live list, and the grid ships in the server HTML.
   loader: () => fetchCountries(),
-  head: ({ loaderData }) => {
+  head: ({ loaderData, matches }) => {
+    const settings = settingsFromMatches(matches);
     const countries = loaderData ?? [];
     const names = countries.map((c) => c.name);
     const count = countries.length;
@@ -25,19 +34,18 @@ export const Route = createFileRoute("/countries/")({
 
     return {
       meta: [
-        { title: `Country Guide: ${count} Study Destinations | Star Global Vision` },
+        { title: `Country Guide: ${count} Study Destinations | ${settings.name}` },
         {
           name: "description",
           content: `Compare intakes, work rights, tuition and test requirements for studying in ${nameList} from Nepal.`,
         },
-        { property: "og:title", content: "Study Abroad Country Guide | Star Global Vision" },
+        { property: "og:title", content: `Study Abroad Country Guide | ${settings.name}` },
         {
           property: "og:description",
           content: `Compare intakes, work rights and test requirements across our ${numberWord(count)} study destinations.`,
         },
         { property: "og:type", content: "website" },
         { property: "og:url", content: absoluteUrl("/countries") },
-        { property: "og:image", content: defaultOgImage },
       ],
       links: [{ rel: "canonical", href: absoluteUrl("/countries") }],
       scripts: [
@@ -123,10 +131,10 @@ function Countries() {
   return (
     <SiteLayout>
       <PageHero
-        eyebrow="Country guide"
-        title={`${capitalise(numberWord(countries.length))} destinations. One recommendation that fits you.`}
+        {...useCopy(countriesHero, {
+          title: `${capitalise(numberWord(countries.length))} destinations. One recommendation that fits you.`,
+        })}
         highlight={4}
-        intro="Australia, Canada, the USA and the UK are our flagship destinations, and we also place students across the Nordics, central Europe, Malta, New Zealand, Japan, South Korea and the UAE. Compare them properly, then let us tell you which one fits your profile."
       >
         <dl className="mt-10 grid max-w-2xl grid-cols-2 gap-x-6 gap-y-6 sm:grid-cols-4">
           {/* Every entry carries a suffix, empty where there is none: a mixed
@@ -151,11 +159,7 @@ function Countries() {
       {/* Grid */}
       <section className="mx-auto max-w-6xl px-5 py-14 md:py-20">
         <div className="flex flex-wrap items-end justify-between gap-5">
-          <SectionHeading
-            eyebrow="Where you can go"
-            title="What each destination offers"
-            intro="Tap any destination for the full guide: universities, tuition, living costs, entry requirements and the visa route."
-          />
+          <SectionHeading {...useCopy(countriesGrid)} />
 
           <div
             role="group"
@@ -205,8 +209,7 @@ function Countries() {
       {/* Closing CTA */}
       <section className="mx-auto max-w-6xl px-5 pb-4 pt-16">
         <CtaBand
-          title="Not sure which country fits your profile and budget?"
-          intro="Bring your transcripts to a free session and we will compare two or three realistic options side by side, including the ones we think you should rule out."
+          {...useCopy(countriesCta)}
           primary={{ to: "/contact", label: "Book free counselling" }}
           secondary={{ to: "/success-stories", label: "See where students went" }}
         />
@@ -221,17 +224,19 @@ function Countries() {
 
 /** Every destination on one screen, the fastest way to narrow a shortlist. */
 function ComparisonTable({ rows }: { rows: readonly Country[] }) {
+  // Read before the empty-list guard below, because hooks have to run in the
+  // same order on every render and an early return above one skips it.
+  const heading = useCopy(countriesCompare, {
+    intro: `Intakes, work rights, tuition and accepted tests for every destination, so you can narrow ${numberWord(rows.length)} down to a shortlist before you speak to anyone.`,
+  });
+
   if (rows.length === 0) return null;
 
   return (
     <section className="border-y border-border bg-secondary/40 py-16 md:py-24">
       <div className="mx-auto max-w-6xl px-5">
         <Reveal>
-          <SectionHeading
-            eyebrow="Compare"
-            title="The whole picture on one screen"
-            intro={`Intakes, work rights, tuition and accepted tests for every destination, so you can narrow ${numberWord(rows.length)} down to a shortlist before you speak to anyone.`}
-          />
+          <SectionHeading {...heading} />
         </Reveal>
 
         <div className="mt-10 overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
@@ -314,11 +319,7 @@ function DecisionGuide({ countries }: { countries: readonly Country[] }) {
   return (
     <section className="mx-auto max-w-5xl px-5 py-16 md:py-24">
       <Reveal>
-        <SectionHeading
-          eyebrow="Help me choose"
-          title="Start from what matters most to you"
-          intro="Most students arrive with a country in mind and leave with a better one. Pick the priority that sounds like you and see where it points."
-        />
+        <SectionHeading {...useCopy(countriesChooser)} />
       </Reveal>
 
       <Reveal stagger className="mt-10 grid gap-5 md:grid-cols-2">

@@ -4,43 +4,77 @@ import { BadgeCheck, Mail, Phone, Quote } from "lucide-react";
 import { CtaBand, PageHero, SectionHeading, SiteLayout } from "@/components/site/Chrome";
 import { Counter } from "@/components/site/Counter";
 import { Reveal } from "@/components/site/Reveal";
-import { advantageIcons } from "@/components/site/advantage-icons";
-import { advantages, processSteps, services, site, testimonials } from "@/data/site";
+import { advantageIcon } from "@/components/site/advantage-icons";
+import {
+  advantagesSpec,
+  processStepsSpec,
+  servicesSpec,
+  testimonialsSpec,
+} from "@/data/collections";
+import {
+  aboutAdvantages,
+  aboutApproval,
+  aboutCta,
+  aboutHero,
+  aboutMission,
+  aboutProcess,
+  aboutServices,
+  aboutTeam,
+  aboutTestimonials,
+} from "@/data/page-copy";
 import { fetchTeamMembers } from "@/lib/content-api";
 import { initials } from "@/lib/content-utils";
-import { absoluteUrl, breadcrumbJsonLd, defaultOgImage } from "@/lib/seo";
+import { absoluteUrl, breadcrumbJsonLd, settingsFromMatches } from "@/lib/seo";
 import { useStats } from "@/lib/use-countries";
+import { useCollection, useCopy, useSettings } from "@/lib/use-site-content";
 
 export const Route = createFileRoute("/about")({
-  head: () => ({
-    meta: [
-      { title: "About Star Global Vision Educational Consultancy, Bagbazar Kathmandu" },
-      {
-        name: "description",
-        content:
-          "Star Global Vision Educational Consultancy is a Ministry of Social Development approved study abroad consultancy in Bagbazar-28, Kathmandu, Nepal.",
-      },
-      { property: "og:title", content: "About Star Global Vision Educational Consultancy" },
-      {
-        property: "og:description",
-        content:
-          "Our mission, our services and the students we have guided to world-ranked universities.",
-      },
-      { property: "og:type", content: "article" },
-      { property: "og:url", content: absoluteUrl("/about") },
-      { property: "og:image", content: defaultOgImage },
-    ],
-    links: [{ rel: "canonical", href: absoluteUrl("/about") }],
-    scripts: [
-      {
-        type: "application/ld+json",
-        children: breadcrumbJsonLd([
-          { name: "Home", url: "/" },
-          { name: "About", url: "/about" },
-        ]),
-      },
-    ],
-  }),
+  head: ({ matches }) => {
+    const settings = settingsFromMatches(matches);
+
+    /*
+      The accreditation is quoted rather than paraphrased. This sentence used to
+      read "is a Ministry of Social Development approved study abroad
+      consultancy", which baked the ministry's name into the grammar — so
+      changing the approval line in /admin left this page's search description
+      still claiming the old accreditation, the one thing on the page that must
+      not be wrong.
+
+      Free text, so the trailing full stop is trimmed before one is added, and an
+      empty field drops the sentence rather than leaving a stray ".".
+    */
+    const approval = settings.approval.trim().replace(/\.\s*$/, "");
+    const summary = `${settings.legal_name} is a study abroad consultancy in ${settings.address}.`;
+    const description = approval ? `${summary} ${approval}.` : summary;
+
+    return {
+      meta: [
+        { title: `About ${settings.legal_name}, Bagbazar Kathmandu` },
+        {
+          name: "description",
+          content: description,
+        },
+        { property: "og:title", content: `About ${settings.legal_name}` },
+        {
+          property: "og:description",
+          content:
+            "Our mission, our services and the students we have guided to world-ranked universities.",
+        },
+        { property: "og:type", content: "article" },
+        { property: "og:url", content: absoluteUrl("/about") },
+      ],
+      links: [{ rel: "canonical", href: absoluteUrl("/about") }],
+      scripts: [
+        {
+          type: "application/ld+json",
+          children: breadcrumbJsonLd([
+            { name: "Home", url: "/" },
+            { name: "About", url: "/about" },
+          ]),
+        },
+      ],
+    };
+  },
   loader: async () => {
     const teamMembers = await fetchTeamMembers();
     return { teamMembers };
@@ -50,15 +84,21 @@ export const Route = createFileRoute("/about")({
 
 function About() {
   const { teamMembers } = Route.useLoaderData();
+  const settings = useSettings();
   const headlineStats = useStats();
+  // Edited in /admin, falling back to the built-in lists.
+  const services = useCollection(servicesSpec);
+  const processSteps = useCollection(processStepsSpec);
+  const advantages = useCollection(advantagesSpec);
+  const testimonials = useCollection(testimonialsSpec);
+  // Read up here rather than at the call site, because the team section only
+  // renders when there is a team, and a hook inside a conditional would run in
+  // a different order once somebody adds the first member.
+  const teamHeading = useCopy(aboutTeam);
 
   return (
     <SiteLayout>
-      <PageHero
-        title="A Kathmandu consultancy that tells you what your file is actually worth."
-        highlight={2}
-        intro="Star Global Vision Educational Consultancy has guided students from Bagbazar-28 to universities and colleges across four continents, with counselling that starts from your profile, not from a commission list."
-      />
+      <PageHero {...useCopy(aboutHero)} highlight={2} />
 
       {/*
         No scroll reveals on this page. It is the page a parent reads carefully,
@@ -68,22 +108,22 @@ function About() {
         {/* Mission + credentials */}
         <div className="grid gap-10 md:grid-cols-[1.2fr_1fr]">
           <div className="gradient-border rounded-3xl border border-border bg-card p-8 shadow-soft md:p-10">
-            <h2 className="eyebrow">Our mission</h2>
+            <h2 className="eyebrow">{useCopy(aboutMission).eyebrow}</h2>
             <blockquote className="mt-5 text-lg leading-relaxed text-card-foreground md:text-xl">
               <Quote className="mb-4 size-7 text-accent" />
-              {site.mission}
+              {settings.mission}
             </blockquote>
-            <p className="mt-6 text-sm font-medium text-muted-foreground">{site.legalName}</p>
+            <p className="mt-6 text-sm font-medium text-muted-foreground">{settings.legal_name}</p>
           </div>
 
           <div className="space-y-5">
             <div className="surface-brand rounded-3xl p-8 shadow-soft">
               <BadgeCheck className="size-7 text-accent" />
-              <h3 className="mt-4 text-xl font-semibold text-ink-foreground">{site.approval}</h3>
+              <h3 className="mt-4 text-xl font-semibold text-ink-foreground">
+                {settings.approval}
+              </h3>
               <p className="mt-3 text-sm leading-relaxed text-ink-foreground/70">
-                We operate as a registered and approved educational consultancy, so your
-                documentation and processing follow the standards Nepali authorities and foreign
-                missions expect.
+                {useCopy(aboutApproval).intro}
               </p>
             </div>
             <dl className="grid grid-cols-2 gap-4">
@@ -104,10 +144,7 @@ function About() {
 
         {/* Services */}
         <div className="mt-20">
-          <SectionHeading
-            title="What our support covers"
-            intro="Six areas of work, all handled in the same office, so you never have to coordinate between a counsellor, a language institute and a documentation agent."
-          />
+          <SectionHeading {...useCopy(aboutServices)} />
           <div className="mt-8 grid gap-5 md:grid-cols-3">
             {services.map((s) => (
               <div
@@ -124,11 +161,7 @@ function About() {
         {/* Process: banded out of the page rhythm so it reads as its own chapter. */}
         <div className="mt-24 rounded-3xl border-y border-border bg-secondary/50 px-6 py-14 md:mt-28 md:px-10">
           <div className="mx-auto max-w-4xl">
-            <SectionHeading
-              eyebrow="The process"
-              title="How we work with you"
-              intro="One counsellor stays with you through all six stages, so nothing is repeated and nothing is dropped between desks."
-            />
+            <SectionHeading {...useCopy(aboutProcess)} />
             <ol className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {processSteps.map((step) => (
                 <li
@@ -159,13 +192,10 @@ function About() {
 
         {/* Differentiators */}
         <div className="mt-20">
-          <SectionHeading
-            title="What makes us different"
-            intro="The things students tell us they did not get from the consultancy they visited first."
-          />
+          <SectionHeading {...useCopy(aboutAdvantages)} />
           <div className="mt-8 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
             {advantages.map((a) => {
-              const Icon = advantageIcons[a.icon];
+              const Icon = advantageIcon(a.icon);
               return (
                 <div
                   key={a.title}
@@ -184,11 +214,7 @@ function About() {
         {teamMembers.length > 0 && (
           <div className="mt-24 rounded-3xl border-y border-border bg-secondary/50 px-6 py-14 md:mt-28 md:px-10">
             <div className="mx-auto max-w-5xl">
-              <SectionHeading
-                eyebrow="Our people"
-                title="Meet the team behind your success"
-                intro="Experienced counsellors, documentation specialists and language instructors working together under one roof."
-              />
+              <SectionHeading {...teamHeading} />
               <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                 {teamMembers.map((member) => (
                   <Reveal key={member.id} delay={100}>
@@ -260,11 +286,7 @@ function About() {
 
         {/* Testimonials */}
         <div className="mt-20">
-          <SectionHeading
-            eyebrow="In their words"
-            title="Students who sat where you are sitting"
-            intro="Three of the students we have placed, with their course, their university and what the process felt like."
-          />
+          <SectionHeading {...useCopy(aboutTestimonials)} />
           <div className="mt-8 grid gap-5 md:grid-cols-3">
             {testimonials.slice(0, 3).map((t) => (
               <figure
@@ -290,8 +312,7 @@ function About() {
         <div className="mt-20">
           <CtaBand
             variant="quiet"
-            title="Come in and talk it through"
-            intro="Bagbazar-28, Kathmandu. Sunday to Friday, no appointment needed."
+            {...useCopy(aboutCta)}
             primary={{ to: "/contact", label: "Talk to a counsellor" }}
             secondary={{ to: "/countries", label: "Browse destinations" }}
           />

@@ -2,8 +2,10 @@ import { useLocation } from "@tanstack/react-router";
 import { Loader2, Send, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { homePopup } from "@/data/page-copy";
 import { getSupabase } from "@/lib/supabase";
 import { useCountries } from "@/lib/use-countries";
+import { useCopy } from "@/lib/use-site-content";
 
 /** Shared field treatment, so the five inputs cannot drift apart. */
 const fieldClass =
@@ -26,6 +28,10 @@ const DISMISSED_KEY = "sgv-inquiry-seen";
 export function InquiryPopup() {
   const location = useLocation();
   const countries = useCountries();
+  // Read at the top, not at the heading: everything below `if (!open)` is skipped
+  // on almost every render, and a hook down there would only run once the timer
+  // fires.
+  const invitation = useCopy(homePopup);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
@@ -193,11 +199,9 @@ export function InquiryPopup() {
             <div className="mb-5 text-center">
               <img src="/logo.png" alt="" className="mx-auto h-10 w-auto" />
               <h2 id="inquiry-title" className="mt-3 font-display text-xl font-bold">
-                Free consultation
+                {invitation.title}
               </h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Tell us your destination and we will map out the route.
-              </p>
+              <p className="mt-1 text-sm text-muted-foreground">{invitation.intro}</p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-3">

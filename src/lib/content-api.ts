@@ -1,3 +1,4 @@
+import type { ContentRow, ErasedSpec, SiteContent } from "@/data/collections";
 import {
   seedBlogPosts,
   seedCountries,
@@ -8,6 +9,8 @@ import {
   type SuccessStory,
   type TeamMember,
 } from "@/data/content";
+import { copyKey, type CopyRow, type PageCopy } from "@/data/page-copy";
+import { site, type SiteSettings } from "@/data/site";
 import { getSupabase, type Enquiry, type EnquiryInput, type EnquiryStatus } from "@/lib/supabase";
 
 /**
@@ -379,4 +382,381 @@ export async function importSeedCountries(): Promise<number> {
   const { error } = await supabase.from("countries").insert(rows);
   if (error) throw new Error(error.message);
   return rows.length;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Site settings                                                               */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * One of the admin tables is not reachable through the REST API.
+ *
+ * A class rather than a bare Error, so the UI can offer the one-time setup card
+ * instead of showing an error message. The alternative is matching on
+ * `error.message`, which breaks silently the moment the wording is edited.
+ */
+export class MissingTableError extends Error {
+  readonly table: string;
+
+  constructor(table: string) {
+    super(
+      `The "${table}" table is not in the database yet. Apply supabase/schema.sql — ` +
+        `or if you already have, reload the API cache with: notify pgrst, 'reload schema';`,
+    );
+    this.name = "MissingTableError";
+    this.table = table;
+  }
+}
+
+export const isMissingTable = (error: unknown): error is MissingTableError =>
+  error instanceof MissingTableError;
+
+/**
+ * Turns a failed admin request on one of the three tables this admin work added
+ * into a message staff can act on.
+ *
+ * `supabase/schema.sql` is not applied by anything automatic — no migration
+ * runner, no CI — so a table can exist in git and nowhere else. PostgREST
+ * reports that as "Could not find the table 'public.site_content' in the schema
+ * cache", which reads like a caching bug and sends whoever hits it looking in
+ * entirely the wrong place.
+ *
+ * PGRST205 does not distinguish the two causes: PostgREST answers the same way
+ * whether the table is genuinely absent or merely missing from the schema it has
+ * cached, and the second happens routinely right after a fresh `create table`.
+ * So the message names both fixes rather than guessing. 42P01 is Postgres' own
+ * undefined_table, which arrives instead when the request gets past the cache.
+ *
+ * Public reads deliberately do not use this — they log and fall back to seed
+ * content, because a missing table must degrade the site, not explain itself to
+ * a visitor.
+ */
+function adminError(error: { code?: string; message: string }, table: string): Error {
+  if (error.code === "PGRST205" || error.code === "42P01") return new MissingTableError(table);
+  return new Error(error.message);
+}
+
+/**
+ * Four fields that would visibly break the page if left blank: an empty
+ * `<title>`, an empty meta description or an unnamed organisation in the JSON-LD
+ * are all worse than showing the default.
+ *
+ * Every other field is used verbatim, blank included, because a blank there is a
+ * decision — clearing the second phone number means the office has one number,
+ * and coalescing it back to the default would make that impossible to express.
+ */
+const requiredSettings = ["name", "legal_name", "seo_title", "seo_description"] as const;
+
+/**
+ * Business details and SEO defaults for every page.
+ *
+ * Never throws. The header and footer call this through the root loader on every
+ * route, so an outage has to degrade to the defaults in `src/data/site.ts`
+ * rather than break the whole site — same contract as `fetchCountries`.
+ *
+ * The table ships with no row at all, so a miss is the normal state until staff
+ * save the form once, not an error worth logging.
+ */
+export async function fetchSettings(): Promise<SiteSettings> {
+  const supabase = getSupabase();
+  if (!supabase) return site;
+
+  const { data, error } = await supabase
+    .from("site_settings")
+    .select("*")
+    .eq("id", "main")
+    .maybeSingle();
+
+  if (error) {
+    console.error("Falling back to default site settings:", error.message);
+    return site;
+  }
+  if (!data) return site;
+
+  /*
+    Layered over the defaults rather than used on its own, so a column the row
+    does not carry falls back instead of arriving as undefined.
+
+    That is not hypothetical. `create table if not exists` does nothing at all
+    when the table already exists, so schema.sql is safe to re-run but does not
+    add columns to a table that predates them — and this function runs inside the
+    root loader's Promise.all, where one `undefined.trim()` would 500 every page
+    on the site, including the ones that never read a setting. Spreading is the
+    difference between a missing column degrading to the default, which is this
+    file's whole contract, and it taking the site down.
+
+    Only absent keys are filled. A key that is present and empty stays empty,
+    because per the note above a blank is a deliberate decision.
+  */
+  const merged = { ...site, ...data };
+  for (const key of requiredSettings) {
+    if (!merged[key].trim()) merged[key] = site[key];
+  }
+  return merged;
+}
+
+/**
+ * The settings row for the editor.
+ *
+ * Returns the defaults when there is no row yet, so the form opens pre-filled
+ * with the copy that is actually on the site rather than empty boxes. That also
+ * means the first save writes real values instead of blanking the footer.
+ *
+ * Layered over the defaults for the same reason `fetchSettings` is: a column the
+ * row does not carry would otherwise reach a text input as undefined, which
+ * React turns into an uncontrolled field and the next save writes back as null.
+ */
+export async function adminGetSettings(): Promise<SiteSettings> {
+  const supabase = getSupabase();
+  if (!supabase) throw new Error("Supabase is not configured.");
+
+  const { data, error } = await supabase
+    .from("site_settings")
+    .select("*")
+    .eq("id", "main")
+    .maybeSingle();
+
+  if (error) throw adminError(error, "site_settings");
+  return data ? { ...site, ...data } : site;
+}
+
+/**
+ * Creates or updates the single settings row.
+ *
+ * An upsert rather than insert-or-update: the row may not exist on the first
+ * save, and `id` is pinned to `"main"` so this can never write a second one.
+ */
+export async function saveSettings(settings: SiteSettings): Promise<void> {
+  const supabase = getSupabase();
+  if (!supabase) throw new Error("Supabase is not configured.");
+
+  const { error } = await supabase.from("site_settings").upsert({ ...settings, id: "main" });
+  if (error) throw adminError(error, "site_settings");
+}
+
+/* -------------------------------------------------------------------------- */
+/* Site content (the editable lists)                                           */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Every published content row on the site, grouped by collection.
+ *
+ * Never throws, like the other public reads. One request covers all thirteen
+ * lists — a few kilobytes — because the root route loads it once per page and
+ * thirteen separate queries would be thirteen round trips for the same data.
+ *
+ * Returns an empty object when there is nothing to read, which each consumer
+ * turns into the seed list for its own collection.
+ */
+export async function fetchSiteContent(): Promise<SiteContent> {
+  const supabase = getSupabase();
+  if (!supabase) return {};
+
+  const { data, error } = await supabase
+    .from("site_content")
+    .select("*")
+    .eq("published", true)
+    .order("collection")
+    .order("sort_order");
+
+  if (error || !data) {
+    console.error("Falling back to seed site content:", error?.message);
+    return {};
+  }
+
+  const grouped: SiteContent = {};
+  for (const row of data) {
+    (grouped[row.collection] ??= []).push(row);
+  }
+  return grouped;
+}
+
+/** Every row of one collection for the editor, drafts included. */
+export async function adminListCollection(collection: string): Promise<ContentRow[]> {
+  const supabase = getSupabase();
+  if (!supabase) throw new Error("Supabase is not configured.");
+
+  const { data, error } = await supabase
+    .from("site_content")
+    .select("*")
+    .eq("collection", collection)
+    .order("sort_order");
+
+  if (error) throw adminError(error, "site_content");
+  return data ?? [];
+}
+
+/** Creates the row when `id` is blank, updates it otherwise. */
+export async function saveContentItem(row: ContentRow): Promise<void> {
+  const supabase = getSupabase();
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const { id, ...fields } = row;
+
+  const { error } = id
+    ? await supabase.from("site_content").update(fields).eq("id", id)
+    : await supabase.from("site_content").insert(fields);
+
+  if (error) throw adminError(error, "site_content");
+}
+
+export async function deleteContentItem(id: string): Promise<void> {
+  const supabase = getSupabase();
+  if (!supabase) throw new Error("Supabase is not configured.");
+  const { error } = await supabase.from("site_content").delete().eq("id", id);
+  if (error) throw adminError(error, "site_content");
+}
+
+/**
+ * Copies a collection's built-in list into the table so staff can edit it.
+ *
+ * Refuses when the collection already has rows, rather than merging: unlike the
+ * destinations, these records have no natural key to match on, so a second
+ * import would silently duplicate every item. Returns how many were inserted.
+ */
+export async function importSeedCollection(spec: ErasedSpec): Promise<number> {
+  const supabase = getSupabase();
+  if (!supabase) throw new Error("Supabase is not configured.");
+
+  const existing = await adminListCollection(spec.id);
+  if (existing.length > 0) return 0;
+
+  const rows = spec.seed.map((data, index) => ({
+    collection: spec.id,
+    // Tens, so a new item can be slotted between two existing ones without
+    // renumbering the whole list.
+    sort_order: index * 10,
+    published: true,
+    data,
+  }));
+
+  const { error } = await supabase.from("site_content").insert(rows);
+  if (error) throw adminError(error, "site_content");
+  return rows.length;
+}
+
+/**
+ * Imports every still-empty collection in a group, for staff who want the whole
+ * site's content in the database rather than one list at a time.
+ *
+ * Sequential rather than `Promise.all`: thirteen concurrent multi-row inserts on
+ * one table is needless contention for a button pressed once, and importing in
+ * order means a failure partway through leaves a state someone can reason about
+ * — the lists before it imported, the rest untouched — instead of an arbitrary
+ * subset. The error names the collection that failed for the same reason.
+ *
+ * Safe to press twice: `importSeedCollection` refuses a collection that already
+ * has rows, so a second press imports whatever was added since and skips the
+ * rest. Skipped collections are not counted, so the result reports what actually
+ * changed rather than how many were considered.
+ */
+export async function importSeedCollections(
+  specs: readonly ErasedSpec[],
+): Promise<{ collections: number; items: number }> {
+  let collections = 0;
+  let items = 0;
+
+  for (const spec of specs) {
+    let inserted: number;
+    try {
+      inserted = await importSeedCollection(spec);
+    } catch (cause) {
+      /*
+        A missing table is a setup problem, not a problem with this list, and it
+        would fail identically for all thirteen. Rethrown as itself so the UI
+        offers the setup card rather than naming an arbitrary collection as the
+        culprit — which reads as "Headline figures is broken" when nothing is.
+      */
+      if (isMissingTable(cause)) throw cause;
+      const detail = cause instanceof Error ? cause.message : String(cause);
+      throw new Error(`Importing "${spec.label}" failed, so the rest were left alone. ${detail}`);
+    }
+    if (inserted > 0) {
+      collections += 1;
+      items += inserted;
+    }
+  }
+
+  return { collections, items };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Page sections (the headings and intros)                                     */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Every saved heading override, keyed by `page/section`.
+ *
+ * Never throws, like the other public reads, and returns an empty object on a
+ * miss — which is also the normal state. The table holds overrides only, so
+ * "nothing saved" means every block shows the built-in copy in
+ * `src/data/page-copy.ts`. One request covers all fifty-two blocks, because the
+ * root route loads them once for every page.
+ */
+export async function fetchPageCopy(): Promise<PageCopy> {
+  const supabase = getSupabase();
+  if (!supabase) return {};
+
+  const { data, error } = await supabase.from("page_sections").select("*");
+
+  if (error || !data) {
+    console.error("Falling back to built-in page copy:", error?.message);
+    return {};
+  }
+
+  const keyed: PageCopy = {};
+  for (const row of data) {
+    keyed[copyKey(row)] = row;
+  }
+  return keyed;
+}
+
+/** Every saved override for the editor, in no particular order. */
+export async function adminListPageCopy(): Promise<CopyRow[]> {
+  const supabase = getSupabase();
+  if (!supabase) throw new Error("Supabase is not configured.");
+
+  const { data, error } = await supabase.from("page_sections").select("*");
+
+  if (error) throw adminError(error, "page_sections");
+  return data ?? [];
+}
+
+/**
+ * Saves one block's copy.
+ *
+ * An upsert on `(page, section)` rather than an insert-or-update on `id`: the
+ * editor works from the declared list of blocks, not from the table, so it has
+ * no id for a block nobody has edited yet — and two staff members saving the
+ * same heading at once must not produce two rows for one slot.
+ */
+export async function savePageCopy(
+  row: Pick<CopyRow, "page" | "section" | "eyebrow" | "heading" | "intro">,
+): Promise<void> {
+  const supabase = getSupabase();
+  if (!supabase) throw new Error("Supabase is not configured.");
+
+  const { error } = await supabase.from("page_sections").upsert(row, {
+    onConflict: "page,section",
+  });
+
+  if (error) throw adminError(error, "page_sections");
+}
+
+/**
+ * Drops one block's override, so the page shows its built-in copy again.
+ *
+ * Deletes by `(page, section)` rather than by id for the same reason the save
+ * upserts: the editor addresses blocks by name.
+ */
+export async function resetPageCopy(page: string, section: string): Promise<void> {
+  const supabase = getSupabase();
+  if (!supabase) throw new Error("Supabase is not configured.");
+
+  const { error } = await supabase
+    .from("page_sections")
+    .delete()
+    .eq("page", page)
+    .eq("section", section);
+
+  if (error) throw adminError(error, "page_sections");
 }

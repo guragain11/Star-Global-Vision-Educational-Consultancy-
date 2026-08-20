@@ -11,10 +11,12 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
-import { defaultOgImage } from "../lib/seo";
-import { fetchCountries } from "../lib/content-api";
+import { absoluteUrl, defaultOgImage } from "../lib/seo";
+import { fetchCountries, fetchPageCopy, fetchSettings, fetchSiteContent } from "../lib/content-api";
+import { site, type SiteSettings } from "../data/site";
 import { usePointerEffects } from "../lib/pointer-effects";
 import { themeScript } from "../lib/use-theme";
+import { useSettings } from "../lib/use-site-content";
 import { InquiryPopup } from "../components/site/InquiryPopup";
 
 /** Suggested destinations on the 404 page, to keep a lost visitor inside the site. */
@@ -27,12 +29,14 @@ const notFoundLinks = [
 ] as const;
 
 function NotFoundComponent() {
+  const settings = useSettings();
+
   return (
     <div className="surface-brand grid-glow flex min-h-screen items-center justify-center px-5 py-16">
       <div className="max-w-lg text-center">
         <img
           src="/logo.png"
-          alt="Star Global Vision Educational Consultancy"
+          alt={settings.legal_name}
           className="mx-auto h-16 w-auto rounded-xl bg-ink-foreground p-1.5 shadow-lift"
         />
         <p className="mt-8 font-display text-6xl font-bold text-gradient-sun md:text-7xl">404</p>
@@ -107,66 +111,90 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   /*
-    The destination list, loaded here because the header renders it on every page
-    and cannot await. `fetchCountries` never throws — it falls back to seed
-    content — so a database outage degrades the nav instead of breaking every
-    route. See `useCountries` in lib/use-countries.ts for the read side.
+    The destination list, the business details, every editable list on the site
+    and every heading override, loaded here because the header and footer render
+    some of it on every page and cannot await. None of the four fetches throws —
+    each falls back to seed content — so a database outage degrades the nav and
+    the footer instead of breaking every route. One Promise.all, so this costs the
+    same round trip as the country list did alone. See `useCountries` in
+    lib/use-countries.ts and `useSettings` / `useCollection` / `useCopy` in
+    lib/use-site-content.ts for the read side.
   */
-  loader: async () => ({ countries: await fetchCountries() }),
+  loader: async () => {
+    const [countries, settings, content, copy] = await Promise.all([
+      fetchCountries(),
+      fetchSettings(),
+      fetchSiteContent(),
+      fetchPageCopy(),
+    ]);
+    return { countries, settings, content, copy };
+  },
 
-  head: () => ({
-    meta: [
-      { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Star Global Vision Educational Consultancy" },
-      {
-        name: "description",
-        content:
-          "Study abroad consultancy in Bagbazar, Kathmandu, covering Australia, Canada, USA, UK, New Zealand, the Nordics, Japan, South Korea, the UAE and test preparation.",
-      },
-      { name: "author", content: "Star Global Vision Educational Consultancy" },
-      /*
-        One per colour scheme. A single hardcoded navy meant a dark-mode visitor
-        got a navy browser bar above a near-black page, and a light-mode visitor
-        got navy above white — neither matched what was on screen.
-      */
-      {
-        name: "theme-color",
-        content: "#fbfcfe",
-        media: "(prefers-color-scheme: light)",
-      },
-      {
-        name: "theme-color",
-        content: "#101a2c",
-        media: "(prefers-color-scheme: dark)",
-      },
-      { property: "og:site_name", content: "Star Global Vision" },
-      { property: "og:type", content: "website" },
-      { property: "og:image", content: defaultOgImage },
-      { property: "og:locale", content: "en_NP" },
-      { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:site", content: "@starglobalnp" },
-      { name: "twitter:image", content: defaultOgImage },
-    ],
-    links: [
-      {
-        rel: "stylesheet",
-        href: appCss,
-      },
-      { rel: "preconnect", href: "https://fonts.googleapis.com" },
-      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      {
-        rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&display=swap",
-      },
-      // The logo doubles as the site favicon, served straight from public/.
-      { rel: "icon", href: "/logo.png", type: "image/png" },
-      { rel: "apple-touch-icon", href: "/logo.png" },
-      // Default OG/twitter image for pages without a cover of their own.
-      // Absolute, because scrapers fetch it without a page to resolve against.
-      { rel: "image_src", href: defaultOgImage },
-    ],
-  }),
+  /*
+    `head` is not a component, so `useSettings` cannot be called here — but it
+    does receive every match, and the root's own loader data is the first of
+    them. Reading it back out is how the editable title and description reach the
+    document head. Optional-chained throughout: head runs before the loader has
+    resolved on the very first render pass.
+  */
+  head: ({ matches }) => {
+    const loaded = matches[0]?.loaderData as { settings?: SiteSettings } | undefined;
+    const settings = loaded?.settings ?? site;
+    const ogImage = settings.og_image ? absoluteUrl(settings.og_image) : defaultOgImage;
+
+    return {
+      meta: [
+        { charSet: "utf-8" },
+        { name: "viewport", content: "width=device-width, initial-scale=1" },
+        { title: settings.seo_title },
+        {
+          name: "description",
+          content: settings.seo_description,
+        },
+        { name: "author", content: settings.legal_name },
+        /*
+          One per colour scheme. A single hardcoded navy meant a dark-mode visitor
+          got a navy browser bar above a near-black page, and a light-mode visitor
+          got navy above white — neither matched what was on screen.
+        */
+        {
+          name: "theme-color",
+          content: "#fbfcfe",
+          media: "(prefers-color-scheme: light)",
+        },
+        {
+          name: "theme-color",
+          content: "#101a2c",
+          media: "(prefers-color-scheme: dark)",
+        },
+        { property: "og:site_name", content: settings.name },
+        { property: "og:type", content: "website" },
+        { property: "og:image", content: ogImage },
+        { property: "og:locale", content: "en_NP" },
+        { name: "twitter:card", content: "summary_large_image" },
+        { name: "twitter:site", content: "@starglobalnp" },
+        { name: "twitter:image", content: ogImage },
+      ],
+      links: [
+        {
+          rel: "stylesheet",
+          href: appCss,
+        },
+        { rel: "preconnect", href: "https://fonts.googleapis.com" },
+        { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
+        {
+          rel: "stylesheet",
+          href: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&display=swap",
+        },
+        // The logo doubles as the site favicon, served straight from public/.
+        { rel: "icon", href: "/logo.png", type: "image/png" },
+        { rel: "apple-touch-icon", href: "/logo.png" },
+        // Default OG/twitter image for pages without a cover of their own.
+        // Absolute, because scrapers fetch it without a page to resolve against.
+        { rel: "image_src", href: ogImage },
+      ],
+    };
+  },
 
   shellComponent: RootShell,
   component: RootComponent,

@@ -49,7 +49,12 @@ export function SplitWords({
   // one continuous string for a screen reader and for select-and-copy.
   const words = text.split(/\s+/).filter(Boolean);
 
-  const highlightFrom = highlightWords > 0 ? words.length - highlightWords : words.length;
+  // Clamped to leave at least one plain word. Headlines are edited in /admin now,
+  // and `highlightWords` is a count in the code beside the component — so a
+  // rewrite from twelve words to three used to paint the entire headline with the
+  // gradient, which reads as a mistake rather than as emphasis.
+  const highlightFrom =
+    highlightWords > 0 ? Math.max(1, words.length - highlightWords) : words.length;
 
   return (
     <Tag data-reveal={shown ? "in" : "out"} className={`words ${className}`}>

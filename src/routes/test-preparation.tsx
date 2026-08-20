@@ -19,36 +19,59 @@ import { CtaBand, PageHero, SectionHeading, SiteLayout } from "@/components/site
 import { Counter } from "@/components/site/Counter";
 import { FaqList } from "@/components/site/Faq";
 import { Reveal } from "@/components/site/Reveal";
-import { chooser, exams, method, testFaqs, type Exam } from "@/data/exams";
-import { absoluteUrl, defaultOgImage, faqJsonLd } from "@/lib/seo";
+import {
+  chooserSpec,
+  examsSpec,
+  methodSpec,
+  testFaqsSpec,
+  type Method as TeachingNote,
+} from "@/data/collections";
+import { examAnchor, type Exam } from "@/data/exams";
+import {
+  testPrepChooser,
+  testPrepCompare,
+  testPrepCta,
+  testPrepExams,
+  testPrepFaqs,
+  testPrepHero,
+  testPrepMethod,
+} from "@/data/page-copy";
+import { capitalise, numberWord } from "@/lib/content-utils";
+import { absoluteUrl, collectionFromMatches, faqJsonLd, settingsFromMatches } from "@/lib/seo";
+import { useCollection, useCopy } from "@/lib/use-site-content";
 
 export const Route = createFileRoute("/test-preparation")({
-  head: () => ({
-    meta: [
-      { title: "IELTS, PTE, Duolingo & JLPT Classes in Kathmandu | Star Global Vision" },
-      {
-        name: "description",
-        content:
-          "IELTS, PTE Academic, Duolingo English Test and JLPT Japanese classes in Bagbazar, Kathmandu. Full exam formats, score targets, weekly mock tests and batches capped at 12.",
-      },
-      { property: "og:title", content: "Test Preparation Classes | Star Global Vision" },
-      {
-        property: "og:description",
-        content:
-          "Every exam format explained, from sections and timing to score scales and the band you need, plus small-batch classes with weekly mocks.",
-      },
-      { property: "og:type", content: "article" },
-      { property: "og:url", content: absoluteUrl("/test-preparation") },
-      { property: "og:image", content: defaultOgImage },
-    ],
-    links: [{ rel: "canonical", href: absoluteUrl("/test-preparation") }],
-    scripts: [
-      {
-        type: "application/ld+json",
-        children: faqJsonLd(testFaqs),
-      },
-    ],
-  }),
+  head: ({ matches }) => {
+    const settings = settingsFromMatches(matches);
+
+    return {
+      meta: [
+        { title: `IELTS, PTE, Duolingo & JLPT Classes in Kathmandu | ${settings.name}` },
+        {
+          name: "description",
+          content:
+            "IELTS, PTE Academic, Duolingo English Test and JLPT Japanese classes in Bagbazar, Kathmandu. Full exam formats, score targets, weekly mock tests and batches capped at 12.",
+        },
+        { property: "og:title", content: `Test Preparation Classes | ${settings.name}` },
+        {
+          property: "og:description",
+          content:
+            "Every exam format explained, from sections and timing to score scales and the band you need, plus small-batch classes with weekly mocks.",
+        },
+        { property: "og:type", content: "article" },
+        { property: "og:url", content: absoluteUrl("/test-preparation") },
+      ],
+      links: [{ rel: "canonical", href: absoluteUrl("/test-preparation") }],
+      scripts: [
+        {
+          type: "application/ld+json",
+          // The edited questions, not the built-in ones, so what Google is told
+          // matches what the page shows.
+          children: faqJsonLd(collectionFromMatches(matches, testFaqsSpec)),
+        },
+      ],
+    };
+  },
   component: TestPrep,
 });
 
@@ -88,16 +111,20 @@ function useScrollSpy(ids: readonly string[]): string {
 /* -------------------------------------------------------------------------- */
 
 function TestPrep() {
-  const active = useScrollSpy(exams.map((e) => e.slug));
+  // Every list on this page is edited in /admin, and falls back to the
+  // built-in exam reference data until someone does.
+  const exams = useCollection(examsSpec);
+  const chooser = useCollection(chooserSpec);
+  const method = useCollection(methodSpec);
+  const testFaqs = useCollection(testFaqsSpec);
+  // Sanitised once here, then used for the nav, the scroll spy and the panel
+  // ids, so the three can never disagree about what an anchor is called.
+  const anchors = exams.map(examAnchor);
+  const active = useScrollSpy(anchors);
 
   return (
     <SiteLayout>
-      <PageHero
-        eyebrow="Test preparation"
-        title="Know the exam before you sit it."
-        highlight={4}
-        intro="IELTS, PTE Academic, the Duolingo English Test and JLPT Japanese, taught in our Bagbazar office, in batches of twelve, by teachers who sit beside the counsellors handling your application. Below is exactly what each exam asks of you."
-      >
+      <PageHero {...useCopy(testPrepHero)} highlight={4}>
         <dl className="mt-10 grid max-w-2xl grid-cols-2 gap-x-6 gap-y-6 sm:grid-cols-4">
           {/* `to: null` on the two that are words rather than numbers, so the
               counter is skipped there instead of trying to animate "Weekly". */}
@@ -125,12 +152,13 @@ function TestPrep() {
               Jump to
             </span>
             <div className="no-scrollbar -mx-1 flex flex-1 gap-1.5 overflow-x-auto px-1 py-0.5">
-              {exams.map((e) => {
-                const isActive = active === e.slug;
+              {exams.map((e, i) => {
+                const anchor = anchors[i] ?? "";
+                const isActive = active === anchor;
                 return (
                   <a
-                    key={e.slug}
-                    href={`#${e.slug}`}
+                    key={i}
+                    href={`#${anchor}`}
                     aria-current={isActive ? "true" : undefined}
                     className={`press shrink-0 rounded-full px-3.5 py-1.5 text-sm font-medium ${
                       isActive
@@ -161,16 +189,12 @@ function TestPrep() {
 
       {/* Chooser: the question every student arrives with */}
       <section className="mx-auto max-w-6xl px-5 pt-16 md:pt-24">
-        <SectionHeading
-          eyebrow="Start here"
-          title="Which test should you take?"
-          intro="The right exam is worth about half a band on its own. Find the line that sounds like you, then confirm it with a free diagnostic before you pay any registration fee."
-        />
+        <SectionHeading {...useCopy(testPrepChooser)} />
 
         <div className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {chooser.map((c) => (
+          {chooser.map((c, i) => (
             <div
-              key={c.situation}
+              key={i}
               className="card-lift gradient-border rounded-2xl border border-border bg-card p-6 shadow-soft [--lift:-0.1875rem]"
             >
               <p className="text-sm font-semibold leading-snug">{c.situation}</p>
@@ -185,25 +209,22 @@ function TestPrep() {
 
       {/* Exam detail: the long read, and the reason most students are on this page. */}
       <section className="mx-auto max-w-6xl px-5 py-20 md:py-28">
-        <SectionHeading
-          title="Every section, every timing, every score scale"
-          intro="Most students walk into the test centre knowing the name of the exam and very little else. Read this properly and you will already be ahead of the room."
-        />
+        <SectionHeading {...useCopy(testPrepExams)} />
 
         <div className="mt-12 space-y-8 md:space-y-12">
           {exams.map((exam, i) => (
-            <ExamPanel key={exam.slug} exam={exam} index={i} />
+            <ExamPanel key={i} exam={exam} index={i} anchor={anchors[i] ?? ""} />
           ))}
         </div>
       </section>
 
-      <ComparisonTable />
+      <ComparisonTable exams={exams} />
 
-      <Method />
+      <Method notes={method} />
 
       {/* FAQ */}
       <section className="mx-auto max-w-6xl px-5 py-14 md:py-20">
-        <SectionHeading eyebrow="Class questions" title="What students ask us before enrolling" />
+        <SectionHeading {...useCopy(testPrepFaqs)} />
 
         <div className="mt-10 grid gap-10 lg:grid-cols-[1.15fr_0.85fr] lg:items-start">
           <FaqList items={testFaqs} />
@@ -245,8 +266,7 @@ function TestPrep() {
       {/* Closing CTA */}
       <section className="mx-auto max-w-6xl px-5 pb-4">
         <CtaBand
-          title="New batches open every two weeks"
-          intro="Morning, day and evening timings, Sunday to Friday. Evening batches fill first, so tell us your target score and date and we will hold you a seat."
+          {...useCopy(testPrepCta)}
           primary={{ to: "/contact", label: "Reserve a seat" }}
           secondary={{ to: "/success-stories", label: "See student results" }}
         />
@@ -259,23 +279,34 @@ function TestPrep() {
 /* Exam panel                                                                 */
 /* -------------------------------------------------------------------------- */
 
-function ExamPanel({ exam, index }: { exam: Exam; index: number }) {
+/**
+ * Header tints, alternating brand and sun, applied by position.
+ *
+ * Derived from the panel's index rather than stored on the exam: this used to be
+ * a raw Tailwind fragment on the record, which is the sort of thing that cannot
+ * survive being edited in /admin. Reordering the exams or adding a fifth now
+ * tints correctly without anybody touching a class name.
+ */
+const accents = ["from-primary/12", "from-accent/14", "from-primary/10", "from-accent/12"];
+
+function ExamPanel({ exam, index, anchor }: { exam: Exam; index: number; anchor: string }) {
   const facts = [
     { icon: Timer, label: "Total time", value: exam.totalTime },
     { icon: Gauge, label: "Score scale", value: exam.scale },
     { icon: CalendarClock, label: "Results", value: exam.results },
     { icon: BadgeCheck, label: "Valid for", value: exam.validity },
   ];
+  const accent = accents[index % accents.length];
 
   return (
     <Reveal as="article">
       <div
-        id={exam.slug}
+        id={anchor}
         className="scroll-mt-36 overflow-hidden rounded-4xl border border-border bg-card shadow-soft"
       >
         {/* Header band */}
         <div
-          className={`relative overflow-hidden border-b border-border bg-linear-to-br ${exam.accent} to-transparent px-7 py-8 md:px-10`}
+          className={`relative overflow-hidden border-b border-border bg-linear-to-br ${accent} to-transparent px-7 py-8 md:px-10`}
         >
           <div className="flex flex-wrap items-start justify-between gap-5">
             <div className="max-w-2xl">
@@ -306,7 +337,7 @@ function ExamPanel({ exam, index }: { exam: Exam; index: number }) {
             <ol className="mt-6 grid gap-4">
               {exam.sections.map((s, si) => (
                 <li
-                  key={s.name}
+                  key={si}
                   className="group relative rounded-2xl border border-border bg-secondary/40 p-5 transition-colors hover:border-primary/30 hover:bg-secondary/70"
                 >
                   <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
@@ -342,9 +373,9 @@ function ExamPanel({ exam, index }: { exam: Exam; index: number }) {
                 <Target className="size-4 text-primary" /> Scores you need
               </h4>
               <dl className="mt-5 grid gap-3">
-                {exam.targets.map((t) => (
+                {exam.targets.map((t, ti) => (
                   <div
-                    key={t.label}
+                    key={ti}
                     className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 border-b border-border/70 pb-3 last:border-0 last:pb-0"
                   >
                     <dt className="text-sm text-muted-foreground">{t.label}</dt>
@@ -372,8 +403,8 @@ function ExamPanel({ exam, index }: { exam: Exam; index: number }) {
                 In our class
               </h4>
               <ul className="mt-4 grid gap-2.5">
-                {exam.classNotes.map((n) => (
-                  <li key={n} className="flex items-start gap-2.5 text-sm">
+                {exam.classNotes.map((n, ni) => (
+                  <li key={ni} className="flex items-start gap-2.5 text-sm">
                     <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-accent" />
                     {n}
                   </li>
@@ -398,7 +429,7 @@ function ExamPanel({ exam, index }: { exam: Exam; index: number }) {
 /* Comparison table                                                           */
 /* -------------------------------------------------------------------------- */
 
-function ComparisonTable() {
+function ComparisonTable({ exams }: { exams: Exam[] }) {
   return (
     <section
       id="compare"
@@ -406,17 +437,17 @@ function ComparisonTable() {
     >
       <div className="mx-auto max-w-6xl px-5">
         <SectionHeading
-          eyebrow="Compare"
-          title="Four exams on one screen"
-          intro="Length, scoring, turnaround and where each one is taken, so you can rule out the two that do not suit you."
+          {...useCopy(testPrepCompare, {
+            title: `${capitalise(numberWord(exams.length))} exams on one screen`,
+          })}
         />
 
         <div className="mt-10 overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
           <div className="overflow-x-auto">
             <table className="w-full min-w-3xl border-collapse text-left text-sm">
               <caption className="sr-only">
-                Comparison of IELTS, PTE Academic, the Duolingo English Test and the JLPT by format,
-                duration, score scale, result turnaround and course length
+                Comparison of {exams.map((e) => e.shortName).join(", ")} by format, duration, score
+                scale, result turnaround and course length
               </caption>
               <thead>
                 <tr className="border-b border-border bg-secondary/60">
@@ -428,13 +459,13 @@ function ComparisonTable() {
                 </tr>
               </thead>
               <tbody>
-                {exams.map((e) => (
+                {exams.map((e, i) => (
                   <tr
-                    key={e.slug}
+                    key={i}
                     className="border-b border-border/70 transition-colors last:border-0 hover:bg-secondary/40"
                   >
                     <th scope="row" className="px-6 py-4 align-top font-medium">
-                      <a href={`#${e.slug}`} className="link-sweep text-primary">
+                      <a href={`#${examAnchor(e, i)}`} className="link-sweep text-primary">
                         {e.shortName}
                       </a>
                     </th>
@@ -464,17 +495,17 @@ function ComparisonTable() {
 /* Method                                                                     */
 /* -------------------------------------------------------------------------- */
 
-function Method() {
+function Method({ notes }: { notes: TeachingNote[] }) {
   return (
     <section id="method" className="mx-auto max-w-5xl scroll-mt-36 px-5 py-16 md:py-24">
       <SectionHeading
-        eyebrow="How we teach"
-        title="Six things we do that a cram school does not"
-        intro="None of this is complicated. It is just the difference between a class that fills a room and a class that moves a band."
+        {...useCopy(testPrepMethod, {
+          title: `${capitalise(numberWord(notes.length))} things we do that a cram school does not`,
+        })}
       />
 
       <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        {method.map((m, i) => (
+        {notes.map((m, i) => (
           <div
             key={m.title}
             className="group relative overflow-hidden rounded-2xl border border-border bg-card p-7 shadow-hair"

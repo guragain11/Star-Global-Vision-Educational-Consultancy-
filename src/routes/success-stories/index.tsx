@@ -5,34 +5,39 @@ import { CtaBand, PageHero, SectionHeading, SiteLayout } from "@/components/site
 import { EmptyState, FilterPills, StoryCard } from "@/components/site/ContentCards";
 import { Counter } from "@/components/site/Counter";
 import { Reveal } from "@/components/site/Reveal";
+import { storiesCta, storiesFilter, storiesHero } from "@/data/page-copy";
 import { fetchSuccessStories } from "@/lib/content-api";
-import { absoluteUrl, defaultOgImage } from "@/lib/seo";
+import { absoluteUrl, settingsFromMatches } from "@/lib/seo";
 import { useStats } from "@/lib/use-countries";
+import { useCopy } from "@/lib/use-site-content";
 
 export const Route = createFileRoute("/success-stories/")({
   // Loading in the loader rather than useQuery, so the grid renders in the initial
   // HTML instead of appearing only after client hydration.
   loader: () => fetchSuccessStories(),
-  head: () => ({
-    meta: [
-      { title: "Student Success Stories: Visas & Offers | Star Global Vision" },
-      {
-        name: "description",
-        content:
-          "Real Nepali students placed in Australia, the U.K, Canada, the U.S.A, New Zealand and Japan, with their universities, courses, intakes and how their visa was approved.",
-      },
-      { property: "og:title", content: "Student Success Stories | Star Global Vision" },
-      {
-        property: "og:description",
-        content:
-          "Offers, visas and new beginnings. Read how students from Bagbazar, Kathmandu reached world-ranked universities.",
-      },
-      { property: "og:type", content: "website" },
-      { property: "og:url", content: absoluteUrl("/success-stories") },
-      { property: "og:image", content: defaultOgImage },
-    ],
-    links: [{ rel: "canonical", href: absoluteUrl("/success-stories") }],
-  }),
+  head: ({ matches }) => {
+    const settings = settingsFromMatches(matches);
+
+    return {
+      meta: [
+        { title: `Student Success Stories: Visas & Offers | ${settings.name}` },
+        {
+          name: "description",
+          content:
+            "Real Nepali students placed in Australia, the U.K, Canada, the U.S.A, New Zealand and Japan, with their universities, courses, intakes and how their visa was approved.",
+        },
+        { property: "og:title", content: `Student Success Stories | ${settings.name}` },
+        {
+          property: "og:description",
+          content:
+            "Offers, visas and new beginnings. Read how students from Bagbazar, Kathmandu reached world-ranked universities.",
+        },
+        { property: "og:type", content: "website" },
+        { property: "og:url", content: absoluteUrl("/success-stories") },
+      ],
+      links: [{ rel: "canonical", href: absoluteUrl("/success-stories") }],
+    };
+  },
   component: SuccessStoriesIndex,
 });
 
@@ -51,12 +56,7 @@ function SuccessStoriesIndex() {
 
   return (
     <SiteLayout>
-      <PageHero
-        eyebrow="Success stories"
-        title="Offers, visas and new beginnings."
-        highlight={2}
-        intro="Every student below sat in our Bagbazar office with the same questions you have now. These are their universities, their courses and what the process looked like."
-      />
+      <PageHero {...useCopy(storiesHero)} highlight={2} />
 
       {/* Results band */}
       <section className="border-b border-border bg-secondary/50">
@@ -74,11 +74,7 @@ function SuccessStoriesIndex() {
 
       <section className="mx-auto max-w-6xl px-5 py-14 md:py-20">
         <Reveal>
-          <SectionHeading
-            eyebrow="Filter by destination"
-            title="Where our students are studying now"
-            intro="Pick a country to see the students we have placed there, and the universities that accepted them."
-          />
+          <SectionHeading {...useCopy(storiesFilter)} />
         </Reveal>
 
         <div className="mt-8">
@@ -120,8 +116,7 @@ function SuccessStoriesIndex() {
           <Reveal>
             <CtaBand
               variant="panel"
-              title="Your story could be the next one here"
-              intro="Start with a free profile assessment. We will tell you which countries and universities are realistic for your academics and your budget."
+              {...useCopy(storiesCta)}
               primary={{ to: "/contact", label: "Book free counselling" }}
             />
           </Reveal>

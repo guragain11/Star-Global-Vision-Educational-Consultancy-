@@ -1,3 +1,6 @@
+import { itemsFrom, type CollectionSpec, type SiteContent } from "@/data/collections";
+import { site, type SiteSettings } from "@/data/site";
+
 /** Production origin, used whenever `VITE_SITE_URL` is not set. */
 const DEFAULT_ORIGIN = "https://starglobalvision.com";
 
@@ -21,8 +24,50 @@ export function absoluteUrl(path: string): string {
   return `${siteUrl}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
-/** Default share image, used by every page without a cover of its own. */
+/**
+ * Share image for pages with no cover of their own, and the logo in the JSON-LD
+ * blocks on the home and contact pages.
+ *
+ * Not for a page's own `og:image` tag. The root route already emits one, from the
+ * editable `og_image` setting and falling back to this — and because head meta is
+ * merged with the deepest match winning, a page that restates this here silently
+ * overrides whatever staff uploaded in /admin. Seven pages used to, which left
+ * that field changing nothing anywhere. Omit the tag and inherit the root's.
+ */
 export const defaultOgImage = absoluteUrl("/logo.png");
+
+/**
+ * The editable business details, for use inside a route's `head()`.
+ *
+ * `head()` is not a React component, so `useSettings()` cannot be called there —
+ * but it does receive every match for the route, and the root match's loader data
+ * is where the settings row lands. This digs it back out.
+ *
+ * The cast is unavoidable: `matches` is typed for the route asking, so its
+ * `loaderData` is that route's shape rather than the root's. Falls back to the
+ * defaults, because `head()` also runs before the loader has resolved on the
+ * first render pass.
+ */
+export function settingsFromMatches(matches: Array<{ loaderData?: unknown }>): SiteSettings {
+  const root = matches[0]?.loaderData as { settings?: SiteSettings } | undefined;
+  return root?.settings ?? site;
+}
+
+/**
+ * The live records of one collection, for use inside a route's `head()`.
+ *
+ * The FAQ block on the home page is written into the page as JSON-LD as well as
+ * rendered, and the two have to agree — so the tag has to read the same edited
+ * list the section does. Same match-digging as `settingsFromMatches`, same
+ * fallback to the built-in list.
+ */
+export function collectionFromMatches<T>(
+  matches: Array<{ loaderData?: unknown }>,
+  spec: CollectionSpec<T>,
+): T[] {
+  const root = matches[0]?.loaderData as { content?: SiteContent } | undefined;
+  return itemsFrom(root?.content, spec);
+}
 
 /** A single question/answer pair, shared by the FAQ list and its JSON-LD. */
 export type FaqItem = { q: string; a: string };
